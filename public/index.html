@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mlkbar</title>
+  <meta name="theme-color" content="#fb0589" />
+  <meta name="description" content="mlkbar quick add for feeds, notes, pumping and weights." />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="mlkbar" />
+  <link rel="manifest" href="/manifest.webmanifest?v=20261111b" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png?v=4" />
+  <link rel="preload" href="/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/style.css?v=20261118c" />
+</head>
+<body data-page="home">
+  <div class="app-shell">
+    <header class="hero">
+      <div class="brand-lockup">
+        <img class="brand-logo" src="/branding/mlkbr-logo.png?v=4" alt="mlkbar" />
+        <span class="brand-name">mlkbar</span>
+      </div>
+      <nav class="site-menu" id="site-menu" aria-label="Primary" hidden>
+        <button class="menu-close" type="button" data-menu-close aria-label="Close menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6L18 18M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+        <div class="menu-grid">
+          <a class="menu-link menu-link-wide" href="/customise.html"><svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><circle cx="16" cy="17.5" r="10"/><path d="M16 7.5Q13.5 4.5 17 3.5"/><path d="M12.5 16.5H12.51M19.5 16.5H19.51"/><path d="M12.5 21Q16 24 19.5 21"/></svg><span>Build Your Profile</span></a>
+          <a class="menu-link" href="/food.html"><svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M16 8.5Q12.5 8.5 12.5 12.5Q12.5 15 10.5 17.5Q8 20.5 8 23.5Q8 28.5 16 28.5Q24 28.5 24 23.5Q24 20.5 21.5 17.5Q19.5 15 19.5 12.5Q19.5 8.5 16 8.5Z"/><path d="M16 8.5Q16 6 17.5 4"/><path d="M17.2 6.2Q19.8 3.6 22.8 5Q20.4 7.8 17.2 6.2Z"/></svg><span>Food Diary</span></a>
+          <a class="menu-link" href="/allergens.html"><svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M16 4Q22 4 22 10Q22 13 20 16Q22 19 22 22Q22 28 16 28Q10 28 10 22Q10 19 12 16Q10 13 10 10Q10 4 16 4Z"/><path d="M14 9.5H14.01M18 12H18.01M14.5 20.5H14.51M18 23H18.01"/></svg><span>Allergens</span></a>
+          <a class="menu-link" href="/measurements.html"><svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M4 27H28"/><path d="M6 22L12 15.5L17 18.5L26 8"/><path d="M20.5 8H26V13.5"/></svg><span>Growth</span></a>
+          <a class="menu-link" href="/settings.html"><svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M13.81 6.86 L14.28 3.92 L17.72 3.92 L18.19 6.86 L20.91 7.99 L23.33 6.24 L25.76 8.67 L24.01 11.09 L25.14 13.81 L28.08 14.28 L28.08 17.72 L25.14 18.19 L24.01 20.91 L25.76 23.33 L23.33 25.76 L20.91 24.01 L18.19 25.14 L17.72 28.08 L14.28 28.08 L13.81 25.14 L11.09 24.01 L8.67 25.76 L6.24 23.33 L7.99 20.91 L6.86 18.19 L3.92 17.72 L3.92 14.28 L6.86 13.81 L7.99 11.09 L6.24 8.67 L8.67 6.24 L11.09 7.99Z"/><circle cx="16" cy="16" r="4"/></svg><span>Settings</span></a>
+        </div>
+      </nav>
+    </header>
+
+    <main class="page">
+      <section class="panel stat-panel">
+        <div class="panel-heading">
+          <h2>Today</h2>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-label">Milk</span>
+            <strong id="today-total">0 ml</strong>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Pumped</span>
+            <strong id="today-pumped-total">0 ml</strong>
+          </div>
+          <div class="stat-card stat-card-wide stat-card-detail">
+            <div class="stat-copy">
+              <span class="stat-label">Last feed</span>
+              <p id="last-feed-meta" class="stat-meta stat-meta-inline"></p>
+            </div>
+            <strong id="last-feed-time">–</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Quick Add</h2>
+        </div>
+
+        <div class="quick-add-grid">
+          <button class="quick-add-button" id="quick-feed" type="button" data-quick="quickFeed">
+            <svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M12.2 8.5V6.5Q12.2 1.5 16 1.5Q19.8 1.5 19.8 6.5V8.5"/><rect x="10.5" y="8.5" width="11" height="3.5" rx="1.2"/><rect x="9" y="12" width="14" height="17" rx="4"/><path d="M9 19.5H23"/></svg>
+            <span class="quick-add-label">120 ml feed</span>
+          </button>
+          <button class="quick-add-button" id="quick-pumped" type="button" data-quick="pumped">
+            <svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><ellipse cx="5.5" cy="9" rx="1.8" ry="5"/><path d="M5.5 4L14 7.5V11L5.5 14"/><rect x="14" y="6.5" width="8" height="6" rx="1.5"/><rect x="14.5" y="12.5" width="10" height="2.5" rx="1"/><rect x="14" y="15" width="11" height="13" rx="3"/><path d="M14 21H25"/></svg>
+            <span class="quick-add-label">Pumped</span>
+          </button>
+          <button class="quick-add-button" id="quick-custom-feed" type="button" data-quick="customFeed">
+            <svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M12.2 8.5V6.5Q12.2 1.5 16 1.5Q19.8 1.5 19.8 6.5V8.5"/><rect x="10.5" y="8.5" width="11" height="3.5" rx="1.2"/><rect x="9" y="12" width="14" height="17" rx="4"/><path d="M9 17H11.5M9 21H12M9 25H11.5"/><path d="M17.5 18V25M14 21.5H21"/></svg>
+            <span class="quick-add-label">Custom feed</span>
+          </button>
+          <div class="timer-card" id="timer-breast" data-quick="breastfeed"></div>
+          <button class="quick-add-button" id="quick-poo" type="button" data-quick="poo">
+            <svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M6 28.5Q3.5 28.5 3.5 25.5Q3.5 21.5 8 21.5H24Q28.5 21.5 28.5 25.5Q28.5 28.5 26 28.5Z"/><path d="M8 21.5Q6.5 16 11.5 16H20.5Q25.5 16 24 21.5"/><path d="M11.5 16Q10.5 11 14.5 10.3Q14 6.5 19 4.5Q17.6 7.8 19.3 10.2Q21.5 11.8 20.5 16"/></svg>
+            <span class="quick-add-label">Poo</span>
+          </button>
+          <button class="quick-add-button" id="quick-wee" type="button" data-quick="wee">
+            <svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M16 4Q23 13 23 19A7 7 0 0 1 9 19Q9 13 16 4Z"/><path d="M12.5 19.5Q12.5 22.5 15.5 23.5"/></svg>
+            <span class="quick-add-label">Wee</span>
+          </button>
+          <div class="timer-card" id="timer-nap" data-quick="nap"></div>
+          <a class="quick-add-button" id="quick-food" href="/food.html" data-quick="food">
+            <svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M16 8.5Q12.5 8.5 12.5 12.5Q12.5 15 10.5 17.5Q8 20.5 8 23.5Q8 28.5 16 28.5Q24 28.5 24 23.5Q24 20.5 21.5 17.5Q19.5 15 19.5 12.5Q19.5 8.5 16 8.5Z"/><path d="M16 8.5Q16 6 17.5 4"/><path d="M17.2 6.2Q19.8 3.6 22.8 5Q20.4 7.8 17.2 6.2Z"/></svg>
+            <span class="quick-add-label">Add food</span>
+          </a>
+          <button class="quick-add-button" id="quick-note" type="button" data-quick="note">
+            <svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><rect x="6" y="5" width="16" height="22" rx="3"/><path d="M10 11H18M10 15H18M10 19H14"/><path fill="#ffffff" d="M25 14.5L28 17.5L19.5 26L15.5 27L16.5 23Z"/><path d="M23 16.5L26 19.5"/></svg>
+            <span class="quick-add-label">Note</span>
+          </button>
+        </div>
+        <p id="quick-none" class="field-hint" hidden>All Quick Add buttons are turned off. Turn them on in Settings.</p>
+        <p id="timer-error" class="form-error" hidden></p>
+        <p id="quick-error" class="form-error" hidden></p>
+      </section>
+    </main>
+    <nav class="bottom-nav" aria-label="Quick">
+      <a class="bottom-nav-button active" href="/" aria-current="page">Add</a>
+      <a class="bottom-nav-button" href="/log.html">Log</a>
+      <button class="bottom-nav-button bottom-nav-menu" id="menu-button" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7H20M4 12H20M4 17H20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    </nav>
+  </div>
+
+  <script src="/app.js?v=20261118b"></script>
+</body>
+</html>

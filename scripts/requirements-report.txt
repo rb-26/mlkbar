@@ -1,0 +1,3 @@
+# Host-side only (not needed in the app container).
+# pip install -r scripts/requirements-report.txt
+reportlab==4.2.5

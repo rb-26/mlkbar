@@ -1,0 +1,15 @@
+data/
+backups/
+__pycache__/
+snapshots/*
+!snapshots/.gitkeep
+*.zip
+reports/*.pdf
+._*
+.DS_Store
+.env
+.smbdelete*
+
+# Personal notes (not published)
+README-personal.md
+public/branding/littletrack-logo.jpg

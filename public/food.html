@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mlkbar Food Diary</title>
+  <meta name="theme-color" content="#fb0589" />
+  <meta name="description" content="mlkbar food diary." />
+  <link rel="manifest" href="/manifest.webmanifest?v=20261111b" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png?v=4" />
+  <link rel="preload" href="/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="stylesheet" href="/style.css?v=20261118c" />
+</head>
+<body data-page="food">
+  <div class="app-shell">
+    <header class="hero hero-compact">
+      <div class="brand-lockup">
+        <img class="brand-logo" src="/branding/mlkbr-logo.png?v=4" alt="mlkbar" />
+        <span class="brand-name">mlkbar</span>
+      </div>
+      <nav class="site-menu" id="site-menu" aria-label="Primary" hidden>
+        <button class="menu-close" type="button" data-menu-close aria-label="Close menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6L18 18M18 6L6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+        <div class="menu-grid">
+          <a class="menu-link menu-link-wide" href="/customise.html"><svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><circle cx="16" cy="17.5" r="10"/><path d="M16 7.5Q13.5 4.5 17 3.5"/><path d="M12.5 16.5H12.51M19.5 16.5H19.51"/><path d="M12.5 21Q16 24 19.5 21"/></svg><span>Build Your Profile</span></a>
+          <a class="menu-link active" href="/food.html" aria-current="page"><svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M16 8.5Q12.5 8.5 12.5 12.5Q12.5 15 10.5 17.5Q8 20.5 8 23.5Q8 28.5 16 28.5Q24 28.5 24 23.5Q24 20.5 21.5 17.5Q19.5 15 19.5 12.5Q19.5 8.5 16 8.5Z"/><path d="M16 8.5Q16 6 17.5 4"/><path d="M17.2 6.2Q19.8 3.6 22.8 5Q20.4 7.8 17.2 6.2Z"/></svg><span>Food Diary</span></a>
+          <a class="menu-link" href="/allergens.html"><svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M16 4Q22 4 22 10Q22 13 20 16Q22 19 22 22Q22 28 16 28Q10 28 10 22Q10 19 12 16Q10 13 10 10Q10 4 16 4Z"/><path d="M14 9.5H14.01M18 12H18.01M14.5 20.5H14.51M18 23H18.01"/></svg><span>Allergens</span></a>
+          <a class="menu-link" href="/measurements.html"><svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M4 27H28"/><path d="M6 22L12 15.5L17 18.5L26 8"/><path d="M20.5 8H26V13.5"/></svg><span>Growth</span></a>
+          <a class="menu-link" href="/settings.html"><svg class="quick-add-icon" viewBox="0 0 32 32" aria-hidden="true" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M13.81 6.86 L14.28 3.92 L17.72 3.92 L18.19 6.86 L20.91 7.99 L23.33 6.24 L25.76 8.67 L24.01 11.09 L25.14 13.81 L28.08 14.28 L28.08 17.72 L25.14 18.19 L24.01 20.91 L25.76 23.33 L23.33 25.76 L20.91 24.01 L18.19 25.14 L17.72 28.08 L14.28 28.08 L13.81 25.14 L11.09 24.01 L8.67 25.76 L6.24 23.33 L7.99 20.91 L6.86 18.19 L3.92 17.72 L3.92 14.28 L6.86 13.81 L7.99 11.09 L6.24 8.67 L8.67 6.24 L11.09 7.99Z"/><circle cx="16" cy="16" r="4"/></svg><span>Settings</span></a>
+        </div>
+      </nav>
+    </header>
+
+    <main class="page">
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Add food</h2>
+          <p>Tap a dot to add the food to the chosen day.</p>
+        </div>
+        <div class="food-search-box">
+          <input id="food-search" type="search" placeholder="Search foods, e.g. banana" autocomplete="off" enterkeyhint="done" aria-label="Search foods" />
+          <input id="food-day" type="date" aria-label="Day eaten" />
+        </div>
+        <p id="food-results-label" class="food-results-label"></p>
+        <div id="food-results" class="food-rows"></div>
+        <p id="food-error" class="form-error" hidden></p>
+      </section>
+      <section class="panel" id="food-suggested">
+        <div class="panel-heading">
+          <h2>Suggested foods</h2>
+        </div>
+        <div id="food-groups" class="food-groups"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Diary</h2>
+        </div>
+        <div id="food-diary" class="food-diary empty-state">No foods logged yet.</div>
+        <button id="food-more" class="ghost-button food-more" type="button" hidden>Show older days</button>
+      </section>
+    </main>
+    <nav class="bottom-nav" aria-label="Quick">
+      <a class="bottom-nav-button" href="/">Add</a>
+      <a class="bottom-nav-button" href="/log.html">Log</a>
+      <button class="bottom-nav-button bottom-nav-menu active" id="menu-button" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7H20M4 12H20M4 17H20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    </nav>
+  </div>
+
+  <script src="/app.js?v=20261118b"></script>
+</body>
+</html>
