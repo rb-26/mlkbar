@@ -1,12 +1,12 @@
 services:
-  baby-tracker:
+  mlkbar:
     build: .
-    container_name: baby-tracker
+    container_name: mlkbar
     restart: unless-stopped
     user: "1000:1000"
     environment:
-      LITTLETRACK_SECURE_COOKIE: ${LITTLETRACK_SECURE_COOKIE:-auto}
-      LITTLETRACK_TRUST_PROXY: ${LITTLETRACK_TRUST_PROXY:-false}
+      MLKBAR_SECURE_COOKIE: ${MLKBAR_SECURE_COOKIE:-auto}
+      MLKBAR_TRUST_PROXY: ${MLKBAR_TRUST_PROXY:-false}
     ports:
       - "8098:80"
     volumes:

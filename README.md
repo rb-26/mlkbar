@@ -52,17 +52,17 @@ On your home Wi-Fi the LAN address above works. To use mlkbar anywhere you have 
 When running behind HTTPS (Cloudflare or a proxy), create a `.env` file next to `docker-compose.yml`:
 
 ```bash
-LITTLETRACK_SECURE_COOKIE=auto
-LITTLETRACK_TRUST_PROXY=true
+MLKBAR_SECURE_COOKIE=auto
+MLKBAR_TRUST_PROXY=true
 ```
 
 Then run `docker compose up -d` again.
 
 | Setting | Meaning |
 |---|---|
-| `LITTLETRACK_SECURE_COOKIE=auto` | Secure login cookie on HTTPS, still works on plain HTTP over the LAN. |
-| `LITTLETRACK_TRUST_PROXY=true` | Trust `X-Forwarded-*` headers from your proxy. Only enable it behind a proxy. |
-| `LITTLETRACK_SECRET_KEY` | Optional. Otherwise a key is generated and kept in `data/`. |
+| `MLKBAR_SECURE_COOKIE=auto` | Secure login cookie on HTTPS, still works on plain HTTP over the LAN. |
+| `MLKBAR_TRUST_PROXY=true` | Trust `X-Forwarded-*` headers from your proxy. Only enable it behind a proxy. |
+| `MLKBAR_SECRET_KEY` | Optional. Otherwise a key is generated and kept in `data/`. |
 
 ## Connect the iOS app
 

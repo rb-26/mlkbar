@@ -28,7 +28,15 @@ SECRET_KEY_PATH = DATA_DIR / ".flask-secret-key"
 DEFAULT_FEEDING_TIMES = ["02:00", "06:00", "08:30", "11:00", "14:00", "17:00", "19:30", "22:00"]
 LOCAL_TZ = ZoneInfo("Australia/Melbourne")
 SESSION_DAYS = 90
-SECURE_COOKIE_MODE = os.environ.get("LITTLETRACK_SECURE_COOKIE", "auto").strip().lower()
+def env_value(name, default=None):
+    """MLKBAR_<name>, falling back to the old LITTLETRACK_<name>."""
+    value = os.environ.get(f"MLKBAR_{name}")
+    if value is None:
+        value = os.environ.get(f"LITTLETRACK_{name}")
+    return default if value is None else value
+
+
+SECURE_COOKIE_MODE = env_value("SECURE_COOKIE", "auto").strip().lower()
 LOGIN_MAX_FAILURES = 5
 LOGIN_WINDOW_SECONDS = 15 * 60
 LOGIN_LOCKOUT_SECONDS = 5 * 60
@@ -55,22 +63,22 @@ class ProxyAwareSessionInterface(SecureCookieSessionInterface):
 
 
 def env_flag(name, default=False):
-    value = os.environ.get(name)
+    value = env_value(name)
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-if env_flag("LITTLETRACK_TRUST_PROXY"):
+if env_flag("TRUST_PROXY"):
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 app.session_interface = ProxyAwareSessionInterface()
 
 
 def load_secret_key():
-    env_value = os.environ.get("LITTLETRACK_SECRET_KEY", "").strip()
-    if env_value:
-        return env_value
+    configured = env_value("SECRET_KEY", "").strip()
+    if configured:
+        return configured
 
     if SECRET_KEY_PATH.exists():
         existing = SECRET_KEY_PATH.read_text(encoding="utf-8").strip()
