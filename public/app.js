@@ -101,11 +101,11 @@ async function loginWithPassword(password) {
   }
 }
 
-async function setupPassword(password) {
+async function setupPassword(password, setupCode) {
   const response = await fetch("/api/auth/setup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password })
+    body: JSON.stringify({ password, setupCode })
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -3284,6 +3284,8 @@ function renderLogin() {
   const title = document.getElementById("auth-title");
   const copy = document.getElementById("auth-copy");
   const confirmField = document.getElementById("confirm-password-field");
+  const setupCodeField = document.getElementById("setup-code-field");
+  const setupCodeInput = document.getElementById("setup-code");
   const passwordInput = document.getElementById("password");
   const confirmPasswordInput = document.getElementById("confirm-password");
   const submitButton = document.getElementById("auth-submit");
@@ -3317,9 +3319,10 @@ function renderLogin() {
       const isSetup = !status.passwordConfigured;
       title.textContent = isSetup ? "Set mlkbar password" : "Unlock mlkbar";
       copy.textContent = isSetup
-        ? "Create one shared password for the app. You will stay signed in for about 90 days on this device."
+        ? "Enter the setup code from the server logs (or data/setup-code.txt), then create one shared password for the app."
         : "Enter the shared password. You will stay signed in for about 90 days on this device.";
       confirmField.hidden = !isSetup;
+      setupCodeField.hidden = !isSetup;
       submitButton.textContent = isSetup ? "Save Password" : "Log In";
 
       form.addEventListener("submit", async event => {
@@ -3328,6 +3331,10 @@ function renderLogin() {
 
         const password = passwordInput.value;
         const confirmPassword = confirmPasswordInput.value;
+        if (isSetup && !setupCodeInput.value.trim()) {
+          showError("Enter the setup code.");
+          return;
+        }
         if (password.length < 8) {
           showError("Use at least 8 characters.");
           return;
@@ -3340,7 +3347,7 @@ function renderLogin() {
         submitButton.disabled = true;
         try {
           if (isSetup) {
-            await setupPassword(password);
+            await setupPassword(password, setupCodeInput.value);
             showFeedback("Password saved. Opening mlkbar...");
           } else {
             await loginWithPassword(password);

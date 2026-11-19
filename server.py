@@ -25,6 +25,8 @@ PUBLIC_DIR = BASE_DIR / "public"
 DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "littletrack.db"
 SECRET_KEY_PATH = DATA_DIR / ".flask-secret-key"
+# One-time code needed to set the first password (stops anyone else claiming a new server).
+SETUP_CODE_PATH = DATA_DIR / "setup-code.txt"
 DEFAULT_FEEDING_TIMES = ["02:00", "06:00", "08:30", "11:00", "14:00", "17:00", "19:30", "22:00"]
 LOCAL_TZ = ZoneInfo("Australia/Melbourne")
 SESSION_DAYS = 90
@@ -818,12 +820,44 @@ def auth_status():
     )
 
 
+def normalise_setup_code(value):
+    return re.sub(r"[^A-Z0-9]", "", value.upper()) if isinstance(value, str) else ""
+
+
+def ensure_setup_code():
+    """On a fresh server, make sure a setup code exists and print it to the logs."""
+    if is_password_configured():
+        SETUP_CODE_PATH.unlink(missing_ok=True)
+        return None
+    code = SETUP_CODE_PATH.read_text(encoding="utf-8").strip() if SETUP_CODE_PATH.exists() else ""
+    if not code:
+        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O or 1/I
+        raw = "".join(secrets.choice(alphabet) for _ in range(8))
+        code = f"{raw[:4]}-{raw[4:]}"
+        SETUP_CODE_PATH.write_text(code + "\n", encoding="utf-8")
+        os.chmod(SETUP_CODE_PATH, 0o600)
+    print(f"[mlkbar] First-time setup code: {code} (also in data/setup-code.txt)", flush=True)
+    return code
+
+
 @app.post("/api/auth/setup")
 def auth_setup():
     if is_password_configured():
         return jsonify({"error": "Password already configured"}), 409
 
+    retry_after = login_retry_after()
+    if retry_after:
+        response = jsonify({"error": f"Too many attempts. Try again in {max(1, retry_after // 60)} min."})
+        response.headers["Retry-After"] = str(retry_after)
+        return response, 429
+
     payload = request.get_json(silent=True) or {}
+    expected = normalise_setup_code(ensure_setup_code())
+    given = normalise_setup_code(payload.get("setupCode") if isinstance(payload, dict) else None)
+    if not expected or not secrets.compare_digest(given, expected):
+        record_login_failure()
+        return jsonify({"error": "Incorrect setup code. Find it in the server logs or data/setup-code.txt."}), 403
+
     password = payload.get("password") if isinstance(payload, dict) else None
     password = password.strip() if isinstance(password, str) else ""
     if len(password) < 8:
@@ -841,6 +875,8 @@ def auth_setup():
             (password_hash, updated_at),
         )
 
+    SETUP_CODE_PATH.unlink(missing_ok=True)
+    clear_login_failures()
     set_logged_in()
     return jsonify({"ok": True})
 
@@ -1883,6 +1919,7 @@ def static_files(path):
 
 
 init_db()
+ensure_setup_code()
 
 
 if __name__ == "__main__":

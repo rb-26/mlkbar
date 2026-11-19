@@ -35,8 +35,15 @@ mkdir -p data
 docker compose up -d --build
 ```
 
-Open `http://<your-server-ip>:8098` in a browser. **On first visit you choose the password**, so do
-this straight away, before you make the server reachable from the internet.
+Open `http://<your-server-ip>:8098` in a browser and choose the shared password. You'll need the
+one-time **setup code**, which the server prints on first start:
+
+```bash
+docker compose logs mlkbar | grep "setup code"
+# or: cat data/setup-code.txt
+```
+
+This stops anyone else from claiming a new server. The code is deleted once the password is set.
 
 The container runs as user `1000:1000`. If `data/` isn't writable by that user, change `user:` in
 `docker-compose.yml` to your own user and group IDs (`id -u` and `id -g`).

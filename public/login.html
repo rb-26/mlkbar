@@ -28,6 +28,11 @@
         </div>
 
         <form id="login-form" class="entry-form" method="post" action="/api/auth/login" autocomplete="on">
+          <label id="setup-code-field" class="field" hidden>
+            <span>Setup Code</span>
+            <input id="setup-code" name="setupCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH" />
+          </label>
+
           <label class="field">
             <span>Password</span>
             <input id="password" name="password" type="password" autocomplete="current-password" required />
@@ -49,6 +54,6 @@
     </main>
   </div>
 
-  <script src="/app.js?v=20261118b"></script>
+  <script src="/app.js?v=20261119a"></script>
 </body>
 </html>
