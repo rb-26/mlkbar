@@ -3,6 +3,10 @@
 Self-hosted baby tracker with a web app and an iOS app. Log feeds, pumping, breastfeeds,
 naps, nappies, food and growth from any device, with the data on a server you run.
 
+**Get the iOS app (beta):** [join the TestFlight beta](https://testflight.apple.com/join/eSwymH8B).
+Install [TestFlight](https://apps.apple.com/app/testflight/id899247664) from the App Store first,
+then open the link on your iPhone.
+
 > **Using the iOS app?** You don't need a server. Choose **iCloud** when you set up the app and
 > your data stays in your own iCloud account. This guide is only for the **Self-hosted** option
 > (which also gives you the web app).
@@ -66,7 +70,7 @@ Then run `docker compose up -d` again.
 
 ## Connect the iOS app
 
-1. Install mlkbar from the App Store.
+1. Install mlkbar from the [TestFlight beta](https://testflight.apple.com/join/eSwymH8B).
 2. Choose **Self-hosted**.
 3. Enter your server address (e.g. `https://mlkbar.yourdomain.com`, or `http://192.168.x.x:8098` at home) and your password.
 
