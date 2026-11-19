@@ -9,7 +9,8 @@
   <link rel="manifest" href="/manifest.webmanifest?v=20261111b" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=4" />
   <link rel="preload" href="/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="stylesheet" href="/style.css?v=20261120a" />
+  <link rel="stylesheet" href="/style.css?v=20261120b" />
+  <script src="/theme.js?v=20261120a"></script>
 </head>
 <body data-page="customise">
   <div class="app-shell">
@@ -76,6 +77,40 @@
           </div>
         </form>
       </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Feed Reminders</h2>
+          <p>Shows when the next feed is due on the Add page in this browser. Notifications are in the iOS app.</p>
+        </div>
+        <div class="entry-form">
+          <div class="toggle-row">
+            <label for="reminder-enabled">Show next feed time</label>
+            <input id="reminder-enabled" type="checkbox" />
+          </div>
+          <div id="reminder-options" class="field-pair" hidden>
+            <label class="field">
+              <span>Based on</span>
+              <select id="reminder-mode">
+                <option value="fixed">Fixed gap</option>
+                <option value="learned">Learn from feeds</option>
+              </select>
+            </label>
+            <label class="field">
+              <span id="reminder-gap-label">Gap between feeds</span>
+              <select id="reminder-gap">
+                <option value="120">2h</option>
+                <option value="150">2h 30m</option>
+                <option value="180" selected>3h</option>
+                <option value="210">3h 30m</option>
+                <option value="240">4h</option>
+                <option value="270">4h 30m</option>
+                <option value="300">5h</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      </section>
     </main>
     <nav class="bottom-nav" aria-label="Quick">
       <a class="bottom-nav-button" href="/">Add</a>
@@ -84,6 +119,6 @@
     </nav>
   </div>
 
-  <script src="/app.js?v=20261120a"></script>
+  <script src="/app.js?v=20261120b"></script>
 </body>
 </html>

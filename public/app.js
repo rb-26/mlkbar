@@ -3242,8 +3242,31 @@ function renderReminderSettings() {
   gapLabel.textContent = mode.value === "learned" ? "Gap until learned" : "Gap between feeds";
 }
 
+function renderThemeSetting() {
+  const select = document.getElementById("theme-select");
+  if (!select) {
+    return;
+  }
+  let value = "system";
+  try {
+    value = window.localStorage.getItem("mlkbar.theme") || "system";
+  } catch {}
+  select.value = value;
+  select.addEventListener("change", () => {
+    try {
+      window.localStorage.setItem("mlkbar.theme", select.value);
+    } catch {}
+    if (select.value === "system") {
+      document.documentElement.removeAttribute("data-theme");
+    } else {
+      document.documentElement.setAttribute("data-theme", select.value);
+    }
+  });
+}
+
 function renderSettings() {
   renderReminderSettings();
+  renderThemeSetting();
   const form = document.getElementById("settings-form");
   const babyDobInput = document.getElementById("baby-dob");
   const babySexInput = document.getElementById("baby-sex");

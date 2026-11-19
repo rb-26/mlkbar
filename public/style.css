@@ -9,8 +9,8 @@
 
 :root {
   --bg: #ffffff;
-  --panel: rgba(255, 255, 255, 0.82);
-  --panel-border: rgba(0, 0, 0, 0.14);
+  --panel: rgba(var(--paper-rgb), 0.82);
+  --panel-border: rgba(var(--ink-rgb), 0.14);
   --text: #2a1f26;
   --muted: #6f5f69;
   --accent: #ff6fb5;
@@ -18,6 +18,49 @@
   --accent-soft: #ffe3f0;
   --mint: #ffd1e7;
   --shadow: 0 22px 44px rgba(251, 5, 137, 0.12);
+  --surface: #ffffff;
+  --ink-rgb: 0, 0, 0;
+  --paper-rgb: 255, 255, 255;
+  --soft-1: #fff4f9;
+  --soft-2: #ffeef6;
+  --highlight: #ffe384;
+  --danger: #ff1a1a;
+  color-scheme: light;
+}
+
+/* Dark mode: follows the system unless Settings > Appearance picks Light or Dark. */
+:root[data-theme="dark"] {
+  --bg: #141013;
+  --panel: rgba(30, 24, 28, 0.82);
+  --text: #f4eaf0;
+  --muted: #b8a6b1;
+  --accent-soft: #4a1832;
+  --mint: #5a1d3c;
+  --surface: #1e181c;
+  --ink-rgb: 255, 255, 255;
+  --paper-rgb: 30, 24, 28;
+  --soft-1: #2a1822;
+  --soft-2: #331b28;
+  --highlight: #6b5a12;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141013;
+    --panel: rgba(30, 24, 28, 0.82);
+    --text: #f4eaf0;
+    --muted: #b8a6b1;
+    --accent-soft: #4a1832;
+    --mint: #5a1d3c;
+    --surface: #1e181c;
+    --ink-rgb: 255, 255, 255;
+    --paper-rgb: 30, 24, 28;
+    --soft-1: #2a1822;
+    --soft-2: #331b28;
+    --highlight: #6b5a12;
+    color-scheme: dark;
+  }
 }
 
 * {
@@ -34,7 +77,7 @@ body {
   min-height: 100%;
   font-family: "Inter", -apple-system, "Segoe UI", sans-serif;
   font-feature-settings: "cv11", "ss01";
-  background: #ffffff;
+  background: var(--bg);
   color: var(--text);
 }
 
@@ -126,7 +169,7 @@ body.pull-refresh-refreshing .pull-refresh-indicator {
   padding: 0;
   border: 0;
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--accent-dark);
   cursor: pointer;
 }
@@ -152,7 +195,7 @@ body.pull-refresh-refreshing .pull-refresh-indicator {
   justify-content: center;
   gap: 6px;
   padding: 24px;
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .site-menu[hidden] {
@@ -199,9 +242,9 @@ body.pull-refresh-refreshing .pull-refresh-indicator {
   gap: 6px;
   min-height: 104px;
   padding: 12px;
-  border: 1px solid rgba(0, 0, 0, 0.14);
+  border: 1px solid rgba(var(--ink-rgb), 0.14);
   border-radius: 20px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--text);
   text-decoration: none;
   font-size: 1.05rem;
@@ -294,7 +337,7 @@ h1 {
 
 .panel {
   /* Flat white sections outlined in the brand pink. */
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--accent-dark);
   border-radius: 24px;
   box-shadow: none;
@@ -355,9 +398,9 @@ h1 {
   max-width: 100%;
   font-size: 16px;
   padding: 14px 16px;
-  border: 1px solid rgba(0, 0, 0, 0.17);
+  border: 1px solid rgba(var(--ink-rgb), 0.17);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(var(--paper-rgb), 0.96);
   color: var(--text);
   font: inherit;
 }
@@ -369,9 +412,9 @@ h1 {
   max-width: 100%;
   font-size: 16px;
   padding: 14px 16px;
-  border: 1px solid rgba(0, 0, 0, 0.17);
+  border: 1px solid rgba(var(--ink-rgb), 0.17);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(var(--paper-rgb), 0.96);
   color: var(--text);
   font: inherit;
   resize: vertical;
@@ -384,9 +427,9 @@ h1 {
   max-width: 100%;
   font-size: 16px;
   padding: 14px 16px;
-  border: 1px solid rgba(0, 0, 0, 0.17);
+  border: 1px solid rgba(var(--ink-rgb), 0.17);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(var(--paper-rgb), 0.96);
   color: var(--text);
   font: inherit;
 }
@@ -516,8 +559,8 @@ h1 {
 .entry-form-bubble-row {
   padding: 14px;
   border-radius: 20px;
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: var(--surface);
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
 }
 
 .row-label {
@@ -638,8 +681,8 @@ h1 {
 .entry-card,
 .day-card {
   border-radius: 20px;
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: var(--surface);
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
 }
 
 .stat-card {
@@ -859,7 +902,7 @@ h1 {
   gap: 10px;
   padding: 12px;
   border-radius: 22px;
-  background: #ffffff;
+  background: var(--surface);
   border: 1px solid var(--panel-border);
 }
 
@@ -992,15 +1035,15 @@ h1 {
   border-collapse: collapse;
   overflow: hidden;
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.84);
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(var(--paper-rgb), 0.84);
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
 }
 
 .chart-table th,
 .chart-table td {
   padding: 14px 12px;
   text-align: left;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.10);
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.10);
 }
 
 .chart-table tr:last-child td {
@@ -1042,14 +1085,14 @@ h1 {
 }
 
 .info-card-soft {
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .info-highlight-list,
 .info-mini-card {
   border-radius: 22px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
+  background: rgba(var(--paper-rgb), 0.82);
 }
 
 .info-highlight-list {
@@ -1131,15 +1174,15 @@ h1 {
 }
 
 .info-mini-card-mint {
-  background: #fff4f9;
+  background: var(--soft-1);
 }
 
 .info-mini-card-peach {
-  background: #ffeef6;
+  background: var(--soft-2);
 }
 
 .info-mini-card-blue {
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .weight-table thead th:nth-child(1) {
@@ -1243,8 +1286,8 @@ h1 {
   width: 100%;
   min-height: 180px;
   border-radius: 22px;
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: var(--surface);
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
   padding: 8px;
 }
 
@@ -1266,13 +1309,13 @@ h1 {
   margin: 0;
   padding: 12px 14px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.84);
-  border: 1px solid rgba(0, 0, 0, 0.10);
+  background: rgba(var(--paper-rgb), 0.84);
+  border: 1px solid rgba(var(--ink-rgb), 0.10);
   line-height: 1.45;
 }
 
 .chart-row-active td {
-  background: #ffe384;
+  background: var(--highlight);
   color: #6c4119;
   font-weight: 400;
 }
@@ -1314,8 +1357,8 @@ h1 {
   gap: 10px;
   padding: 8px 12px;
   border-radius: 20px;
-  background: #ffffff;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: var(--surface);
+  border: 1px solid rgba(var(--ink-rgb), 0.12);
 }
 
 .settings-row-label {
@@ -1426,7 +1469,7 @@ h1 {
   padding: 16px 12px;
   border: 1px solid var(--panel-border);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.86);
+  background: rgba(var(--paper-rgb), 0.86);
   color: var(--text);
   font: inherit;
   cursor: pointer;
@@ -1474,7 +1517,7 @@ svg.quick-add-icon {
   padding: 20px;
   border: 1px solid var(--accent-dark);
   border-radius: 24px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow);
 }
@@ -1648,7 +1691,7 @@ a.quick-add-button {
   align-items: center;
   gap: 10px;
   padding: 8px 2px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
 }
 
 .toggle-row label {
@@ -1698,7 +1741,7 @@ a.quick-add-button {
   height: 28px;
   margin: 0;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.16);
+  background: rgba(var(--ink-rgb), 0.16);
   position: relative;
   cursor: pointer;
   transition: background 150ms ease;
@@ -1712,7 +1755,7 @@ a.quick-add-button {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #ffffff;
+  background: var(--surface);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   transition: transform 150ms ease;
 }
@@ -1829,7 +1872,7 @@ a.quick-add-button {
   align-items: center;
   gap: 12px;
   padding: 10px 2px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid rgba(var(--ink-rgb), 0.08);
 }
 
 .allergen-row:last-child {
@@ -1861,7 +1904,7 @@ a.quick-add-button {
   padding: 0;
   border: 1.5px solid var(--accent-dark);
   border-radius: 50%;
-  background: #ffffff;
+  background: var(--surface);
   cursor: pointer;
 }
 
@@ -1893,9 +1936,9 @@ a.quick-add-button {
 .food-search-box {
   display: flex;
   align-items: center;
-  border: 1px solid rgba(0, 0, 0, 0.17);
+  border: 1px solid rgba(var(--ink-rgb), 0.17);
   border-radius: 16px;
-  background: #ffffff;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -1925,7 +1968,7 @@ a.quick-add-button {
   flex: none;
   width: 150px;
   padding-left: 12px;
-  border-left: 1px solid rgba(0, 0, 0, 0.12);
+  border-left: 1px solid rgba(var(--ink-rgb), 0.12);
   color: var(--accent-dark);
 }
 
@@ -1947,9 +1990,9 @@ a.quick-add-button {
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  border: 1px solid rgba(0, 0, 0, 0.14);
+  border: 1px solid rgba(var(--ink-rgb), 0.14);
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--surface);
   font: inherit;
   font-size: 0.95rem;
   color: var(--text);
@@ -2222,4 +2265,15 @@ button.food-row {
 .next-feed[hidden],
 #reminder-options[hidden] {
   display: none;
+}
+
+/* Form controls take the theme's text colour; the white pencil in the Note icon follows the surface. */
+input,
+select,
+textarea {
+  color: var(--text);
+}
+
+.quick-add-icon path[fill="#ffffff"] {
+  fill: var(--surface);
 }

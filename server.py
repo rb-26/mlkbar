@@ -755,6 +755,7 @@ def protect_routes():
         "/manifest.webmanifest",
         "/style.css",
         "/app.js",
+        "/theme.js",
         "/sw.js",
     }
 

@@ -3,9 +3,9 @@ module.exports = async (t) => {
   // Own server so feeds logged by other specs don't count.
   const server = await t.startServer({ port: 5196 });
   // Settings page writes the preference.
-  let w = await t.loadPage(server, "settings.html");
+  let w = await t.loadPage(server, "customise.html");
   let d = w.document;
-  t.noErrors(w, "settings.html");
+  t.noErrors(w, "customise.html");
   t.ok("options hidden while off", d.getElementById("reminder-options").hidden);
   d.getElementById("reminder-enabled").checked = true;
   d.getElementById("reminder-enabled").dispatchEvent(new w.Event("change"));

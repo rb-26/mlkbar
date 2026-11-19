@@ -30,7 +30,7 @@ function makeT(specName) {
 async function main() {
   const only = process.argv[2];
   const files = fs.readdirSync(path.join(__dirname, "specs"))
-    .filter(f => f.endsWith(".js") && (!only || f.includes(only)))
+    .filter(f => f.endsWith(".js") && !f.startsWith("._") && (!only || f.includes(only)))
     .sort();
   let ctx = { server: await harness.startServer({ port: 5199 }) };
   for (const file of files) {
