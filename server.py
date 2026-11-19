@@ -119,6 +119,8 @@ ISO_TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 MAX_ID_LENGTH = 64
 MAX_NOTES_LENGTH = 5000
 MAX_FOOD_LENGTH = 80
+MAX_MEDICINE_LENGTH = 80
+MAX_DOSE_LENGTH = 40
 MAX_MILK_ML = 2000
 MAX_WEIGHT_GRAMS = 30000
 MAX_NAP_MINUTES = 24 * 60
@@ -131,7 +133,7 @@ MAX_TIMER_HOURS = 24
 ALLERGEN_KEYS = ("peanut", "egg", "dairy", "wheat", "soy", "sesame", "treenuts", "fish", "shellfish")
 ALLERGEN_TRIES = 3
 # Add page buttons that can be hidden from Settings (shared by the web and iOS apps).
-QUICK_BUTTON_KEYS = ("quickFeed", "pumped", "customFeed", "breastfeed", "poo", "wee", "nap", "food", "note")
+QUICK_BUTTON_KEYS = ("quickFeed", "pumped", "customFeed", "breastfeed", "poo", "wee", "nap", "food", "note", "medicine")
 # Measurement limits (sanity bounds, not clinical limits).
 MIN_LENGTH_CM, MAX_LENGTH_CM = 30.0, 130.0
 MIN_HEAD_CM, MAX_HEAD_CM = 20.0, 60.0
@@ -377,7 +379,7 @@ def migration_needed():
             return True
         if "version" not in columns:
             return True
-        if "breast_left_seconds" not in columns or "food" not in columns:
+        if "breast_left_seconds" not in columns or "food" not in columns or "medicine" not in columns:
             return True
         pumped_columns = {row["name"] for row in conn.execute("PRAGMA table_info(pumped_logs)").fetchall()}
         if pumped_columns and "left_ml" not in pumped_columns:
@@ -416,6 +418,8 @@ def init_db():
                   breast_right_seconds INTEGER,
                   breast_both_seconds INTEGER,
                   food TEXT,
+                  medicine TEXT,
+                  medicine_dose TEXT,
                   timestamp TEXT NOT NULL,
                   created_at TEXT NOT NULL
                 )
@@ -438,6 +442,8 @@ def init_db():
                 ("breast_right_seconds", "INTEGER"),
                 ("breast_both_seconds", "INTEGER"),
                 ("food", "TEXT"),
+                ("medicine", "TEXT"),
+                ("medicine_dose", "TEXT"),
             ):
                 if name not in columns:
                     conn.execute(f"ALTER TABLE entries ADD COLUMN {name} {column_type}")
@@ -985,17 +991,17 @@ def auth_tokens_revoke_all():
 COMBINED_ENTRIES_SQL = """
     SELECT id, milk_ml, notes, feed_session, poo, nap_minutes,
            breast_left_seconds, breast_right_seconds, breast_both_seconds, left_ml, right_ml, food,
-           timestamp, created_at, version, entry_type
+           medicine, medicine_dose, timestamp, created_at, version, entry_type
     FROM (
       SELECT id, milk_ml, notes, feed_session, poo, nap_minutes,
              breast_left_seconds, breast_right_seconds, breast_both_seconds,
-             NULL AS left_ml, NULL AS right_ml, food,
+             NULL AS left_ml, NULL AS right_ml, food, medicine, medicine_dose,
              timestamp, created_at, version, 'feed' AS entry_type
       FROM entries
       UNION ALL
       SELECT id, milk_ml, '' AS notes, NULL AS feed_session, NULL AS poo, NULL AS nap_minutes,
              NULL AS breast_left_seconds, NULL AS breast_right_seconds, NULL AS breast_both_seconds,
-             left_ml, right_ml, NULL AS food,
+             left_ml, right_ml, NULL AS food, NULL AS medicine, NULL AS medicine_dose,
              timestamp, created_at, version, 'pumped' AS entry_type
       FROM pumped_logs
     )
@@ -1016,6 +1022,8 @@ def serialize_entry(row):
         "pumpLeftMl": row["left_ml"],
         "pumpRightMl": row["right_ml"],
         "food": row["food"],
+        "medicine": row["medicine"],
+        "medicineDose": row["medicine_dose"],
         "timestamp": row["timestamp"],
         "createdAt": row["created_at"],
         "entryType": row["entry_type"],
@@ -1098,8 +1106,23 @@ def create_entry():
         raise ValidationError("Invalid food")
     else:
         food = food.strip()
-    if milk_ml is None and not notes and poo is None and nap_minutes is None and not has_breast and food is None:
-        raise ValidationError("Entry needs milkMl, notes, poo, napMinutes, breastfeed time or food")
+    medicine = payload.get("medicine")
+    if medicine in (None, ""):
+        medicine = None
+    elif not isinstance(medicine, str) or not medicine.strip() or len(medicine.strip()) > MAX_MEDICINE_LENGTH:
+        raise ValidationError("Invalid medicine")
+    else:
+        medicine = medicine.strip()
+    medicine_dose = payload.get("medicineDose")
+    if medicine_dose in (None, "") or medicine is None:
+        medicine_dose = None
+    elif not isinstance(medicine_dose, str) or len(medicine_dose.strip()) > MAX_DOSE_LENGTH:
+        raise ValidationError("Invalid medicineDose")
+    else:
+        medicine_dose = medicine_dose.strip() or None
+    if (milk_ml is None and not notes and poo is None and nap_minutes is None and not has_breast
+            and food is None and medicine is None):
+        raise ValidationError("Entry needs milkMl, notes, poo, napMinutes, breastfeed time, food or medicine")
     feed_session = optional_feed_session(payload.get("feedSession"))
     timestamp = require_timestamp(payload, "timestamp")
     created_at = require_timestamp(payload, "createdAt")
@@ -1113,13 +1136,13 @@ def create_entry():
             INSERT OR REPLACE INTO entries (
               id, milk_ml, notes, feed_session, poo, nap_minutes,
               breast_left_seconds, breast_right_seconds, breast_both_seconds, food,
-              timestamp, created_at, version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              medicine, medicine_dose, timestamp, created_at, version
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 entry_id, milk_ml, notes, feed_session, poo, nap_minutes,
                 breast["left"], breast["right"], breast["both"], food,
-                timestamp, created_at, next_version(conn),
+                medicine, medicine_dose, timestamp, created_at, next_version(conn),
             ),
         )
         clear_deletion(conn, "entry", entry_id)
@@ -1420,7 +1443,7 @@ def report_days(rows, days):
         local = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00")).astimezone(LOCAL_TZ)
         key = local.date().isoformat()
         day = by_day.setdefault(key, {"feeds": 0, "feed_ml": 0, "breast": 0, "breast_s": 0, "pumped": 0,
-                                      "naps": 0, "nap_min": 0, "wees": 0, "poos": 0, "foods": []})
+                                      "naps": 0, "nap_min": 0, "wees": 0, "poos": 0, "foods": [], "medicines": []})
         if row["entry_type"] == "pumped":
             day["pumped"] += row["milk_ml"] or 0
         elif row["milk_ml"] is not None:
@@ -1429,6 +1452,9 @@ def report_days(rows, days):
         elif (row["breast_left_seconds"] or 0) + (row["breast_right_seconds"] or 0) + (row["breast_both_seconds"] or 0):
             day["breast"] += 1
             day["breast_s"] += (row["breast_left_seconds"] or 0) + (row["breast_right_seconds"] or 0) + (row["breast_both_seconds"] or 0)
+        elif row["medicine"]:
+            dose = f" {row['medicine_dose']}" if row["medicine_dose"] else ""
+            day["medicines"].append(f"{row['medicine']}{dose} ({local.strftime('%H:%M')})")
         elif row["food"]:
             if row["food"].strip().lower() not in [f.lower() for f in day["foods"]]:
                 day["foods"].append(row["food"].strip())
@@ -1446,6 +1472,7 @@ def report_days(rows, days):
 
 def build_report_pdf(days):
     from io import BytesIO
+    from xml.sax.saxutils import escape
 
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
@@ -1534,7 +1561,15 @@ def build_report_pdf(days):
     if food_days:
         story.append(Paragraph("Foods", heading))
         for key, foods in food_days:
-            story.append(Paragraph(f"<b>{datetime.fromisoformat(key).strftime('%a %-d %b')}</b>: {', '.join(foods)}", body))
+            story.append(Paragraph(f"<b>{datetime.fromisoformat(key).strftime('%a %-d %b')}</b>: {escape(', '.join(foods))}", body))
+
+    # Medicines
+    medicine_days = [(k, d["medicines"]) for k, d in reversed(day_rows) if d["medicines"]]
+    if medicine_days:
+        story.append(Paragraph("Medicines", heading))
+        for key, meds in medicine_days:
+            text = ", ".join(escape(m) for m in sorted(meds, key=lambda m: m[-6:]))
+            story.append(Paragraph(f"<b>{datetime.fromisoformat(key).strftime('%a %-d %b')}</b>: {text}", body))
 
     # Measurements
     if measurements:
@@ -1846,13 +1881,14 @@ def save_settings():
     if has_hidden:
         if hidden_buttons is None:
             hidden_buttons = []
-        if not isinstance(hidden_buttons, list) or any(key not in QUICK_BUTTON_KEYS for key in hidden_buttons):
+        # Unknown keys (from newer apps) are ignored rather than rejected.
+        if not isinstance(hidden_buttons, list) or any(not isinstance(key, str) for key in hidden_buttons):
             raise ValidationError("Invalid hiddenQuickButtons")
         hidden_buttons = [key for key in QUICK_BUTTON_KEYS if key in hidden_buttons]
     has_order = "quickButtonOrder" in payload
     quick_order = payload.get("quickButtonOrder") if has_order else None
     if has_order:
-        if not isinstance(quick_order, list) or any(key not in QUICK_BUTTON_KEYS for key in quick_order):
+        if not isinstance(quick_order, list) or any(not isinstance(key, str) for key in quick_order):
             raise ValidationError("Invalid quickButtonOrder")
         quick_order = normalize_quick_order(quick_order)
 

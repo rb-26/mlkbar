@@ -897,7 +897,8 @@ const QUICK_BUTTONS = [
   { key: "wee", label: "Wee" },
   { key: "nap", label: "Nap" },
   { key: "food", label: "Add food" },
-  { key: "note", label: "Note" }
+  { key: "note", label: "Note" },
+  { key: "medicine", label: "Medicine" }
 ];
 
 // Shown under the search box when nothing is typed.
@@ -950,6 +951,9 @@ function entryKind(entry) {
   }
   if (breastTotalSeconds(entry) > 0) {
     return "breast";
+  }
+  if (entry.medicine) {
+    return "medicine";
   }
   if (entry.food) {
     return "food";
@@ -1012,6 +1016,8 @@ function entrySummary(entry) {
       return `Breastfed ${escapeHtml(breastSummary(entry))}`;
     case "food":
       return escapeHtml(foodLabel(entry.food));
+    case "medicine":
+      return escapeHtml(medicineLabel(entry));
     case "feed":
       return `${escapeHtml(entry.milkMl)} ml`;
     case "poo":
@@ -1021,6 +1027,11 @@ function entrySummary(entry) {
     default:
       return escapeHtml((entry.notes || "").trim());
   }
+}
+
+// "Vitamin D · 400 IU"
+function medicineLabel(entry) {
+  return entry.medicineDose ? `${entry.medicine} \u00b7 ${entry.medicineDose}` : entry.medicine;
 }
 
 function createEntryCard(entry, { plainFood = false } = {}) {
@@ -1235,6 +1246,41 @@ const ENTRY_UI_HTML = `
       <p id="note-dialog-error" class="form-error" hidden></p>
       <div class="form-actions">
         <button class="primary-button" id="note-dialog-save" type="submit">Save</button>
+        <button class="ghost-button" type="button" data-dialog-cancel>Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="medicine-dialog" class="entry-dialog" aria-labelledby="medicine-dialog-title">
+    <form id="medicine-dialog-form" class="entry-form" novalidate>
+      <h2 id="medicine-dialog-title">Medicine</h2>
+      <div id="medicine-dialog-saved-wrap" hidden>
+        <p class="food-results-label">Saved</p>
+        <div id="medicine-dialog-saved" class="food-chips"></div>
+      </div>
+      <div class="field-pair">
+        <label class="field">
+          <span>Medicine</span>
+          <input id="medicine-dialog-name" type="text" maxlength="80" placeholder="e.g. Vitamin D" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Dose</span>
+          <input id="medicine-dialog-dose" type="text" maxlength="40" placeholder="e.g. 400 IU" autocomplete="off" />
+        </label>
+      </div>
+      <div id="medicine-dialog-when" class="field-pair">
+        <label class="field">
+          <span>Date</span>
+          <input id="medicine-dialog-date" type="date" />
+        </label>
+        <label class="field">
+          <span>Time</span>
+          <input id="medicine-dialog-time" type="time" step="60" />
+        </label>
+      </div>
+      <p id="medicine-dialog-error" class="form-error" hidden></p>
+      <div class="form-actions">
+        <button class="primary-button" id="medicine-dialog-save" type="submit">Save</button>
         <button class="ghost-button" type="button" data-dialog-cancel>Cancel</button>
       </div>
     </form>
@@ -1471,6 +1517,8 @@ function createEntryUi({ onEntrySaved = () => {}, onEntryRemoved = () => {}, onM
         breastRightSeconds: entry.breastRightSeconds ?? null,
         breastBothSeconds: entry.breastBothSeconds ?? null,
         food: entry.food ?? null,
+        medicine: entry.medicine ?? null,
+        medicineDose: entry.medicineDose ?? null,
         entryType: "feed"
       };
     entriesCache = [cachedEntry, ...entriesCache.filter(existing => existing.id !== entry.id)];
@@ -1745,6 +1793,110 @@ function createEntryUi({ onEntrySaved = () => {}, onEntryRemoved = () => {}, onM
     } catch {
       noteSave.disabled = false;
       setError(noteError, "Could not save note.");
+    }
+  });
+
+  // ---- medicine (saved list = recent name + dose combinations) ----
+  const medicineDialog = $("medicine-dialog");
+  const medicineName = $("medicine-dialog-name");
+  const medicineDose = $("medicine-dialog-dose");
+  const medicineDate = $("medicine-dialog-date");
+  const medicineTime = $("medicine-dialog-time");
+  const medicineError = $("medicine-dialog-error");
+  const medicineSave = $("medicine-dialog-save");
+  const medicineSavedWrap = $("medicine-dialog-saved-wrap");
+  const medicineSaved = $("medicine-dialog-saved");
+  let medicineEditing = null;
+
+  function savedMedicines(entries) {
+    const seen = new Set();
+    const list = [];
+    sortEntries(entries.filter(item => item.medicine)).forEach(item => {
+      const key = `${item.medicine.trim().toLowerCase()}|${(item.medicineDose || "").trim().toLowerCase()}`;
+      if (!seen.has(key) && list.length < 8) {
+        seen.add(key);
+        list.push({ name: item.medicine, dose: item.medicineDose || "" });
+      }
+    });
+    return list;
+  }
+
+  function drawSavedMedicines(list) {
+    medicineSavedWrap.hidden = !list.length;
+    medicineSaved.innerHTML = list.map(item => `
+      <button class="food-chip" type="button" data-medicine-name="${escapeHtml(item.name)}" data-medicine-dose="${escapeHtml(item.dose)}">
+        ${escapeHtml(medicineLabel({ medicine: item.name, medicineDose: item.dose }))}</button>`).join("");
+  }
+
+  async function openMedicine(entry = null) {
+    medicineEditing = entry;
+    setError(medicineError, "");
+    medicineSave.disabled = false;
+    $("medicine-dialog-title").textContent = entry ? "Edit medicine" : "Medicine";
+    const parts = timestampToLocalParts(entry ? entry.timestamp : nowTimestamp());
+    medicineName.value = entry?.medicine || "";
+    medicineDose.value = entry?.medicineDose || "";
+    medicineDate.value = parts.date;
+    medicineTime.value = parts.time;
+    drawSavedMedicines(savedMedicines(entriesCache));
+    openDialog(medicineDialog);
+    if (!entry) {
+      // The Add page only loads today, so look further back for the saved list.
+      try {
+        const from = new Date(Date.now() - 180 * 864e5).toISOString();
+        const response = await apiFetch(`/api/entries?from=${encodeURIComponent(from)}`);
+        if (response.ok && medicineDialog.open) {
+          drawSavedMedicines(savedMedicines(await response.json()));
+        }
+      } catch {}
+    }
+  }
+
+  medicineSaved.addEventListener("click", event => {
+    const chip = event.target.closest("[data-medicine-name]");
+    if (chip) {
+      medicineName.value = chip.getAttribute("data-medicine-name");
+      medicineDose.value = chip.getAttribute("data-medicine-dose");
+    }
+  });
+
+  wireDialog(medicineDialog, () => {
+    medicineEditing = null;
+  });
+
+  $("medicine-dialog-form").addEventListener("submit", async event => {
+    event.preventDefault();
+    const editing = medicineEditing;
+    const medicine = medicineName.value.trim();
+    if (!medicine) {
+      setError(medicineError, "Add the medicine name.");
+      return;
+    }
+    let timestamp;
+    try {
+      timestamp = editTimestamp(medicineDate, medicineTime);
+    } catch {
+      setError(medicineError, "Pick a valid date and time.");
+      return;
+    }
+    const entry = {
+      id: editing?.id || createId(),
+      milkMl: null,
+      notes: "",
+      feedSession: null,
+      medicine,
+      medicineDose: medicineDose.value.trim() || null,
+      timestamp,
+      createdAt: editing?.createdAt || new Date().toISOString()
+    };
+    medicineSave.disabled = true;
+    try {
+      await saveEntry(entry, "medicine");
+      closeDialog(medicineDialog);
+      showToast(editing ? "Medicine updated." : `${medicineLabel(entry)} logged at ${addedAt(timestamp)}.`, editing ? null : undoEntry(entry.id));
+    } catch {
+      medicineSave.disabled = false;
+      setError(medicineError, "Could not save.");
     }
   });
 
@@ -2181,12 +2333,12 @@ function createEntryUi({ onEntrySaved = () => {}, onEntryRemoved = () => {}, onM
 
   // Open the right editor for an existing entry.
   function editEntry(entry) {
-    const openers = { pumped: openPumped, feed: openFeed, breast: openBreast, food: openFood, poo: openPoo, nap: openNap, note: openNote };
+    const openers = { pumped: openPumped, feed: openFeed, breast: openBreast, food: openFood, poo: openPoo, nap: openNap, note: openNote, medicine: openMedicine };
     openers[entryKind(entry)](entry);
   }
 
   return {
-    openFeed, openPumped, openNote, openPoo, openNap, openNapStart, openBreast, openBreastStart, openFood, openMeasurement,
+    openFeed, openPumped, openNote, openMedicine, openPoo, openNap, openNapStart, openBreast, openBreastStart, openFood, openMeasurement,
     editEntry, showToast, saveEntry, undoEntry, addedAt
   };
 }
@@ -2343,6 +2495,7 @@ function renderHome() {
   document.getElementById("quick-custom-feed").addEventListener("click", () => ui.openFeed());
   document.getElementById("quick-pumped").addEventListener("click", () => ui.openPumped());
   document.getElementById("quick-note").addEventListener("click", () => ui.openNote());
+  document.getElementById("quick-medicine")?.addEventListener("click", () => ui.openMedicine());
   setupTimers(ui, () => renderEntries(entriesCache));
 
   async function loadTodayEntries() {
@@ -2750,8 +2903,8 @@ const logExpandedDays = new Set([localDayKey(new Date().toISOString())]);
 let logExpandedMonths = null; // initialised on first draw to the newest month
 
 function countEntries(entries) {
-  const counts = { feeds: 0, breastfeeds: 0, pumps: 0, foods: 0, wees: 0, poos: 0, naps: 0, notes: 0 };
-  const keys = { feed: "feeds", breast: "breastfeeds", pumped: "pumps", food: "foods", poo: "poos", nap: "naps", note: "notes" };
+  const counts = { feeds: 0, breastfeeds: 0, pumps: 0, foods: 0, wees: 0, poos: 0, naps: 0, notes: 0, medicines: 0 };
+  const keys = { feed: "feeds", breast: "breastfeeds", pumped: "pumps", food: "foods", poo: "poos", nap: "naps", note: "notes", medicine: "medicines" };
   const foodsSeen = new Set();
   entries.forEach(entry => {
     const kind = entryKind(entry);
@@ -2833,7 +2986,8 @@ function createDayCard(container, dayKey) {
         pluralize(counts.pumps, "pump"),
         ...(counts.foods ? [pluralize(counts.foods, "food")] : []),
         ...(counts.wees ? [pluralize(counts.wees, "wee")] : []),
-        pluralize(counts.poos, "poo"), pluralize(counts.naps, "nap")
+        pluralize(counts.poos, "poo"), pluralize(counts.naps, "nap"),
+        ...(counts.medicines ? [pluralize(counts.medicines, "medicine")] : [])
       ])(countEntries(dayEntries)))}
     </div>
     <div class="day-header-side">
@@ -2904,7 +3058,8 @@ function createMonthGroup(container, monthKey, todayKey) {
         ...(counts.foods ? [pluralize(counts.foods, "food")] : []),
         ...(counts.wees ? [pluralize(counts.wees, "wee")] : []),
         pluralize(counts.poos, "poo"),
-        pluralize(counts.naps, "nap"), pluralize(counts.notes, "note")
+        pluralize(counts.naps, "nap"), pluralize(counts.notes, "note"),
+        ...(counts.medicines ? [pluralize(counts.medicines, "medicine")] : [])
       ])(countEntries(monthEntries)))}
       </div>
       <div class="day-total-stack">
