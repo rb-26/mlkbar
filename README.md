@@ -116,6 +116,20 @@ Database changes are applied automatically on start, after a backup.
 - **Logs:** `docker compose logs -f`
 - **Old files after an update:** reload the page. Installed web apps may need closing and reopening.
 
+## Development
+
+Browser-level tests for the web app (no real browser needed):
+
+```bash
+pip install -r requirements.txt
+cd tests/web
+npm install
+npm test            # or: node run.js food   (only specs matching "food")
+```
+
+Each run starts a throwaway server with an empty database, so your data is never touched.
+The same tests run on GitHub for every push.
+
 ## Privacy
 
 See [PRIVACY.md](PRIVACY.md). mlkbar collects nothing: your data stays in your iCloud or on your own server.

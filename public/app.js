@@ -3831,6 +3831,7 @@ function renderFoodDiary() {
       diary.className = "food-diary empty-state";
       diary.textContent = "No foods logged yet.";
       more.hidden = true;
+      drawResults();
       return;
     }
     diary.className = "food-diary";

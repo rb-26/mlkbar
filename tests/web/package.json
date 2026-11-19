@@ -1,0 +1,11 @@
+{
+  "name": "mlkbar-web-tests",
+  "private": true,
+  "description": "Browser-level checks for the mlkbar web app (jsdom, no real browser needed).",
+  "scripts": {
+    "test": "node run.js"
+  },
+  "devDependencies": {
+    "jsdom": "24.1.3"
+  }
+}

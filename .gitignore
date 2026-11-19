@@ -13,3 +13,4 @@ reports/*.pdf
 # Personal notes (not published)
 README-personal.md
 public/branding/littletrack-logo.jpg
+node_modules/
