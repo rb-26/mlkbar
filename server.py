@@ -1385,6 +1385,70 @@ def export_data():
     return response
 
 
+def csv_rows():
+    """Every entry and measurement as spreadsheet rows (oldest first), in local time."""
+    with get_db() as conn:
+        entries = conn.execute(f"{COMBINED_ENTRIES_SQL} ORDER BY timestamp, created_at").fetchall()
+        measurements = conn.execute(
+            "SELECT date, weight_grams, length_cm, head_cm FROM measurements ORDER BY date, created_at"
+        ).fetchall()
+    rows = []
+    for row in entries:
+        local = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00")).astimezone(LOCAL_TZ)
+        kind, amount, minutes, details = "Note", "", "", row["notes"] or ""
+        breast = [(label, row[key] or 0) for label, key in
+                  (("Left", "breast_left_seconds"), ("Right", "breast_right_seconds"), ("Both", "breast_both_seconds"))]
+        if row["entry_type"] == "pumped":
+            kind, amount = "Pumped", row["milk_ml"]
+        elif row["milk_ml"] is not None:
+            kind, amount = "Bottle feed", row["milk_ml"]
+        elif sum(seconds for _, seconds in breast):
+            kind = "Breastfeed"
+            minutes = round(sum(seconds for _, seconds in breast) / 60)
+            details = ", ".join(f"{label} {round(seconds / 60)}m" for label, seconds in breast if seconds)
+        elif row["medicine"]:
+            kind = "Medicine"
+            details = f"{row['medicine']} {row['medicine_dose']}" if row["medicine_dose"] else row["medicine"]
+        elif row["food"]:
+            kind, details = "Food", row["food"]
+        elif row["poo"] == "wee":
+            kind, details = "Wee", ""
+        elif row["poo"]:
+            kind, details = "Poo", {"1": "Small", "2": "Medium", "3": "Large"}.get(row["poo"], row["poo"])
+        elif row["nap_minutes"]:
+            kind, minutes, details = "Nap", row["nap_minutes"], ""
+        rows.append([local.strftime("%Y-%m-%d"), local.strftime("%H:%M"), kind,
+                     amount if amount != "" else "", "ml" if amount != "" else "", minutes, details])
+    for m in measurements:
+        parts = []
+        if m["weight_grams"] is not None:
+            parts.append(f"Weight {m['weight_grams'] / 1000:.2f} kg")
+        if m["length_cm"] is not None:
+            parts.append(f"Length {m['length_cm']:.1f} cm")
+        if m["head_cm"] is not None:
+            parts.append(f"Head {m['head_cm']:.1f} cm")
+        rows.append([m["date"], "", "Measurement", "", "", "", "; ".join(parts)])
+    rows.sort(key=lambda r: (r[0], r[1]))
+    return [["Date", "Time", "Type", "Amount", "Unit", "Duration (min)", "Details"]] + rows
+
+
+@app.get("/api/export.csv")
+@login_required
+def export_csv():
+    import csv
+    from io import StringIO
+
+    buffer = StringIO()
+    writer = csv.writer(buffer)
+    for row in csv_rows():
+        # Stop spreadsheet apps treating typed text as a formula.
+        writer.writerow([f"'{cell}" if isinstance(cell, str) and cell[:1] in ("=", "+", "-", "@") else cell for cell in row])
+    stamp = datetime.now(LOCAL_TZ).strftime("%Y-%m-%d")
+    response = app.response_class("\ufeff" + buffer.getvalue(), mimetype="text/csv")
+    response.headers["Content-Disposition"] = f'attachment; filename="mlkbar-{stamp}.csv"'
+    return response
+
+
 @app.post("/api/import")
 @login_required
 def import_data():

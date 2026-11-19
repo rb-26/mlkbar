@@ -3430,6 +3430,32 @@ function renderSettings() {
     backupError.hidden = !isError || !message;
     (isError ? backupError : backupFeedback).textContent = message;
   }
+  // CSV for spreadsheets (entries + measurements).
+  const exportCsvButton = document.getElementById("export-csv-button");
+  exportCsvButton?.addEventListener("click", async () => {
+    exportCsvButton.disabled = true;
+    backupMessage("");
+    try {
+      const response = await apiFetch("/api/export.csv");
+      if (!response.ok) {
+        throw new Error("Failed");
+      }
+      const blob = await response.blob();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `mlkbar-${formatDateInputValue()}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+      backupMessage("CSV exported.");
+    } catch {
+      backupMessage("Could not export the CSV.", true);
+    } finally {
+      exportCsvButton.disabled = false;
+    }
+  });
+
   exportButton?.addEventListener("click", async () => {
     exportButton.disabled = true;
     backupMessage("");
