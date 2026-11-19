@@ -9,7 +9,7 @@
   <link rel="manifest" href="/manifest.webmanifest?v=20261111b" />
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=4" />
   <link rel="preload" href="/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="stylesheet" href="/style.css?v=20261118c" />
+  <link rel="stylesheet" href="/style.css?v=20261120a" />
 </head>
 <body data-page="settings">
   <div class="app-shell">
@@ -45,6 +45,40 @@
           <p class="field-hint" id="ios-devices-summary"></p>
           <div class="form-actions">
             <button class="ghost-button" id="revoke-ios-button" type="button">Sign Out iOS Devices</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <h2>Feed Reminders</h2>
+          <p>Shows when the next feed is due on the Add page in this browser. Notifications are in the iOS app.</p>
+        </div>
+        <div class="entry-form">
+          <div class="toggle-row">
+            <label for="reminder-enabled">Show next feed time</label>
+            <input id="reminder-enabled" type="checkbox" />
+          </div>
+          <div id="reminder-options" class="field-pair" hidden>
+            <label class="field">
+              <span>Based on</span>
+              <select id="reminder-mode">
+                <option value="fixed">Fixed gap</option>
+                <option value="learned">Learn from feeds</option>
+              </select>
+            </label>
+            <label class="field">
+              <span id="reminder-gap-label">Gap between feeds</span>
+              <select id="reminder-gap">
+                <option value="120">2h</option>
+                <option value="150">2h 30m</option>
+                <option value="180" selected>3h</option>
+                <option value="210">3h 30m</option>
+                <option value="240">4h</option>
+                <option value="270">4h 30m</option>
+                <option value="300">5h</option>
+              </select>
+            </label>
           </div>
         </div>
       </section>
@@ -95,6 +129,6 @@
     </nav>
   </div>
 
-  <script src="/app.js?v=20261119c"></script>
+  <script src="/app.js?v=20261120a"></script>
 </body>
 </html>

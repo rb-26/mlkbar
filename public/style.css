@@ -2207,3 +2207,19 @@ button.food-row {
 #food-suggested[hidden] {
   display: none;
 }
+
+/* Add page: "Next feed due ~14:30 · in 45m" */
+.next-feed {
+  margin: 10px 4px 0;
+  font-size: 0.9rem;
+  color: var(--accent-dark);
+}
+
+.next-feed.overdue {
+  color: var(--danger, #ff1a1a);
+}
+
+.next-feed[hidden],
+#reminder-options[hidden] {
+  display: none;
+}

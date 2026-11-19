@@ -2343,6 +2343,73 @@ function createEntryUi({ onEntrySaved = () => {}, onEntryRemoved = () => {}, onM
   };
 }
 
+// ---------------------------------------------------------------------------
+// Feed reminders (per browser): next feed = latest feed + fixed or learned gap
+// ---------------------------------------------------------------------------
+const REMINDER_KEY = "mlkbar.feedReminder";
+
+function readReminderPrefs() {
+  let saved = {};
+  try {
+    saved = JSON.parse(window.localStorage.getItem(REMINDER_KEY) || "{}") || {};
+  } catch {}
+  return {
+    enabled: saved.enabled === true,
+    mode: saved.mode === "learned" ? "learned" : "fixed",
+    gapMinutes: Number.isInteger(saved.gapMinutes) && saved.gapMinutes > 0 ? saved.gapMinutes : 180
+  };
+}
+
+function writeReminderPrefs(prefs) {
+  try {
+    window.localStorage.setItem(REMINDER_KEY, JSON.stringify(prefs));
+  } catch {}
+}
+
+// Average gap over the last 48h, ignoring top-ups under 30 min. Needs 2+ gaps; clamped to 1-6h.
+function learnedGapMinutes(feedTimes, now = Date.now()) {
+  const recent = feedTimes.filter(t => now - t <= 48 * 3600000 && t <= now + 300000).sort((a, b) => a - b);
+  const gaps = [];
+  for (let i = 1; i < recent.length; i++) {
+    const minutes = (recent[i] - recent[i - 1]) / 60000;
+    if (minutes >= 30) {
+      gaps.push(minutes);
+    }
+  }
+  if (gaps.length < 2) {
+    return null;
+  }
+  const average = gaps.reduce((sum, value) => sum + value, 0) / gaps.length;
+  return Math.round(Math.min(360, Math.max(60, average)));
+}
+
+function reminderGap(feedTimes, prefs, now = Date.now()) {
+  const learned = prefs.mode === "learned" ? learnedGapMinutes(feedTimes, now) : null;
+  return learned ? { minutes: learned, learned: true } : { minutes: prefs.gapMinutes, learned: false };
+}
+
+function nextFeedDue(feedTimes, prefs, now = Date.now()) {
+  const past = feedTimes.filter(t => t <= now + 300000);
+  if (!past.length) {
+    return null;
+  }
+  return Math.max(...past) + reminderGap(feedTimes, prefs, now).minutes * 60000;
+}
+
+function feedTimesOf(entries) {
+  const seen = new Set();
+  return entries
+    .filter(entry => {
+      const kind = entryKind(entry);
+      if ((kind !== "feed" && kind !== "breast") || seen.has(entry.id)) {
+        return false;
+      }
+      seen.add(entry.id);
+      return true;
+    })
+    .map(entry => new Date(entry.timestamp).getTime());
+}
+
 function renderHome() {
   const todayTotal = document.getElementById("today-total");
   const todayPumpedTotal = document.getElementById("today-pumped-total");
@@ -2389,19 +2456,58 @@ function renderHome() {
     lastFeedMeta.textContent = `${what} · ${formatAgo(lastFeed.timestamp)}`;
   }
 
+  // Feeds from the last 48h (the page itself only loads today) for "Next feed due".
+  const nextFeed = document.getElementById("next-feed");
+  let recentFeedEntries = [];
+
+  function renderNextFeed() {
+    if (!nextFeed) {
+      return;
+    }
+    const prefs = readReminderPrefs();
+    const due = prefs.enabled ? nextFeedDue(feedTimesOf([...entriesCache, ...recentFeedEntries]), prefs) : null;
+    nextFeed.hidden = due === null;
+    if (due === null) {
+      return;
+    }
+    const minutes = Math.round((due - Date.now()) / 60000);
+    const when = minutes >= 0 ? `in ${formatDuration(Math.max(minutes, 1) * 60)}` : `${formatDuration(-minutes * 60)} ago`;
+    nextFeed.textContent = `Next feed due ~${formatTime(new Date(due).toISOString())} \u00b7 ${when}`;
+    nextFeed.classList.toggle("overdue", minutes < 0);
+  }
+
+  async function loadRecentFeeds() {
+    if (!readReminderPrefs().enabled) {
+      return;
+    }
+    try {
+      const from = new Date(Date.now() - 48 * 3600000).toISOString();
+      const response = await apiFetch(`/api/entries?from=${encodeURIComponent(from)}`);
+      if (response.ok) {
+        recentFeedEntries = await response.json();
+        renderNextFeed();
+      }
+    } catch {}
+  }
+
   function renderEntries(entries) {
     const todaysEntries = entries.filter(entry => isToday(entry.timestamp));
     todayTotal.textContent = `${sumFeedMilk(todaysEntries)} ml`;
     todayPumpedTotal.textContent = `${sumPumpedMilk(todaysEntries)} ml`;
     renderLastFeed(entries);
+    renderNextFeed();
   }
+  loadRecentFeeds();
 
   // Keep "x min ago" current while the page is open.
   window.setInterval(() => renderEntries(entriesCache), 60000);
 
   const ui = createEntryUi({
     onEntrySaved: () => renderEntries(entriesCache),
-    onEntryRemoved: () => renderEntries(entriesCache)
+    onEntryRemoved: entryId => {
+      recentFeedEntries = recentFeedEntries.filter(entry => entry.id !== entryId);
+      renderEntries(entriesCache);
+    }
   });
 
   function showQuickError(message) {
@@ -2506,6 +2612,7 @@ function renderHome() {
 
   registerPullToRefresh(async () => {
     await loadTodayEntries();
+    await loadRecentFeeds();
     renderEntries(entriesCache);
   });
 
@@ -3112,7 +3219,31 @@ function drawLog(container, entries) {
   container.appendChild(fragment);
 }
 
+function renderReminderSettings() {
+  const enabled = document.getElementById("reminder-enabled");
+  if (!enabled) {
+    return;
+  }
+  const options = document.getElementById("reminder-options");
+  const mode = document.getElementById("reminder-mode");
+  const gap = document.getElementById("reminder-gap");
+  const gapLabel = document.getElementById("reminder-gap-label");
+  const prefs = readReminderPrefs();
+  enabled.checked = prefs.enabled;
+  mode.value = prefs.mode;
+  gap.value = String(prefs.gapMinutes);
+  function sync() {
+    options.hidden = !enabled.checked;
+    gapLabel.textContent = mode.value === "learned" ? "Gap until learned" : "Gap between feeds";
+    writeReminderPrefs({ enabled: enabled.checked, mode: mode.value, gapMinutes: Number(gap.value) || 180 });
+  }
+  [enabled, mode, gap].forEach(input => input.addEventListener("change", sync));
+  options.hidden = !enabled.checked;
+  gapLabel.textContent = mode.value === "learned" ? "Gap until learned" : "Gap between feeds";
+}
+
 function renderSettings() {
+  renderReminderSettings();
   const form = document.getElementById("settings-form");
   const babyDobInput = document.getElementById("baby-dob");
   const babySexInput = document.getElementById("baby-sex");

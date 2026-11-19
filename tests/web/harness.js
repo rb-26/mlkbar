@@ -47,7 +47,7 @@ function stopServers() {
 }
 
 /** Load public/<file> with app.js, wired to the test server. Returns the window. */
-async function loadPage(server, file, { wait = 1000 } = {}) {
+async function loadPage(server, file, { wait = 1000, before = null } = {}) {
   const publicDir = path.join(server.dir, "public");
   const html = fs.readFileSync(path.join(publicDir, file), "utf8").replace(/<script[^>]*src=[^>]*><\/script>/g, "");
   const dom = new JSDOM(html, { url: server.base + "/" + file, runScripts: "outside-only", pretendToBeVisual: true });
@@ -60,6 +60,7 @@ async function loadPage(server, file, { wait = 1000 } = {}) {
   w.addEventListener("error", event => w._errors.push(event.message));
   // Navigations (location.replace / href) are recorded instead of followed.
   w._navigations = [];
+  if (before) before(w);
   // Run the page's own scripts in order (e.g. who-growth.js before app.js).
   const original = fs.readFileSync(path.join(publicDir, file), "utf8");
   const scripts = [...original.matchAll(/<script[^>]*src="\/([^"?]+)[^"]*"[^>]*><\/script>/g)].map(m => m[1]);
