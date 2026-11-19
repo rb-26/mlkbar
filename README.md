@@ -105,6 +105,10 @@ Database changes are applied automatically on start, after a backup.
 - **Logs:** `docker compose logs -f`
 - **Old files after an update:** reload the page. Installed web apps may need closing and reopening.
 
+## Privacy
+
+See [PRIVACY.md](PRIVACY.md). mlkbar collects nothing: your data stays in your iCloud or on your own server.
+
 ## Licence
 
 See [LICENSE](LICENSE).
