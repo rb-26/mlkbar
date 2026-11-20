@@ -4652,6 +4652,195 @@ if (page === "login") {
   renderLogin();
 }
 
+if (page === "trends") {
+  renderTrends();
+}
+
+// ---------------------------------------------------------------------------
+// Trends: one bar per day for the last 7 / 14 / 30 / 60 days
+// ---------------------------------------------------------------------------
+function trendDays(entries, count) {
+  const days = [];
+  const byKey = new Map();
+  for (let offset = count - 1; offset >= 0; offset--) {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - offset);
+    const day = {
+      key: formatDateInputValue(date), date, isToday: offset === 0, hasData: false,
+      milkMl: 0, feeds: 0, sleepMinutes: 0, poos: 0, wees: 0, breastMinutes: 0, pumpedMl: 0, gapMinutes: null, feedTimes: []
+    };
+    days.push(day);
+    byKey.set(day.key, day);
+  }
+  entries.forEach(entry => {
+    const day = byKey.get(localDayKey(entry.timestamp));
+    if (!day) {
+      return;
+    }
+    day.hasData = true;
+    const kind = entryKind(entry);
+    if (kind === "feed") {
+      day.feeds += 1;
+      day.milkMl += entry.milkMl || 0;
+      day.feedTimes.push(new Date(entry.timestamp).getTime());
+    } else if (kind === "breast") {
+      day.feeds += 1;
+      day.breastMinutes += breastTotalSeconds(entry) / 60;
+      day.feedTimes.push(new Date(entry.timestamp).getTime());
+    } else if (kind === "pumped") {
+      day.pumpedMl += entry.milkMl || 0;
+    } else if (kind === "nap") {
+      day.sleepMinutes += entry.napMinutes || 0;
+    } else if (kind === "poo") {
+      if (entry.poo === "wee") {
+        day.wees += 1;
+      } else {
+        day.poos += 1;
+      }
+    }
+  });
+  days.forEach(day => {
+    const times = day.feedTimes.sort((a, b) => a - b);
+    const gaps = [];
+    for (let i = 1; i < times.length; i++) {
+      const minutes = (times[i] - times[i - 1]) / 60000;
+      if (minutes >= 30) {
+        gaps.push(minutes);
+      }
+    }
+    day.gapMinutes = gaps.length ? gaps.reduce((sum, v) => sum + v, 0) / gaps.length : null;
+  });
+  return days;
+}
+
+function renderTrends() {
+  const box = document.getElementById("trend-charts");
+  const error = document.getElementById("trends-error");
+  const buttons = [...document.querySelectorAll("[data-range]")];
+  let range = 30;
+  try {
+    range = [7, 14, 30, 60].includes(Number(localStorage.getItem("mlkbar.trendsDays"))) ? Number(localStorage.getItem("mlkbar.trendsDays")) : 30;
+  } catch {}
+  let entries = [];
+
+  const dayLabel = date => new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short" }).format(date);
+  const volume = ml => (isImperial() ? ml / ML_PER_OZ : ml);
+
+  // Complete days from the first logged day on (no today, no empty lead-in days).
+  function averageOf(days, value) {
+    const first = days.findIndex(day => day.hasData);
+    if (first < 0) {
+      return null;
+    }
+    const complete = days.slice(first).filter(day => !day.isToday);
+    const values = complete.map(value).filter(v => v !== null);
+    return values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : null;
+  }
+
+  function chart({ title, days, value, format, average, stacked = null, perDay = true }) {
+    const totals = days.map(day => (stacked ? stacked.reduce((sum, part) => sum + part.value(day), 0) : value(day) || 0));
+    const max = Math.max(...totals, average || 0) || 1;
+    const width = days.length * 10;
+    const bar = (day, i, height, y, cls, label) =>
+      `<rect class="${cls}${day.isToday ? " trend-today" : ""}" x="${i * 10 + 1.5}" y="${y}" width="7" height="${Math.max(height, 0)}"><title>${escapeHtml(label)}</title></rect>`;
+    const bars = days.map((day, i) => {
+      const when = day.isToday ? "Today" : formatDay(day.date.toISOString()).replace(/ \d{4}$/, "");
+      if (stacked) {
+        let y = 100;
+        return stacked.map(part => {
+          const h = (part.value(day) / max) * 85;
+          y -= h;
+          return bar(day, i, h, y, part.cls, `${when}: ${part.value(day)} ${part.label}`);
+        }).join("");
+      }
+      const v = value(day);
+      if (v === null) {
+        return "";
+      }
+      const h = (v / max) * 85;
+      return bar(day, i, h, 100 - h, "trend-bar", `${when}: ${format(v)}`);
+    }).join("");
+    const avgY = average === null ? null : 100 - (average / max) * 85;
+    const mid = days[Math.floor((days.length - 1) / 2)];
+    const legend = stacked
+      ? `<div class="trend-legend">${stacked.map(part => `<span><i class="${part.cls}"></i>${escapeHtml(part.label)}</span>`).join("")}</div>`
+      : "";
+    return `
+      <section class="panel trend-card">
+        <div class="trend-head">
+          <h3>${escapeHtml(title)}</h3>
+          <span class="trend-avg">${average === null ? "No data yet" : `Avg ${escapeHtml(format(average))}${perDay ? " a day" : ""}`}</span>
+        </div>
+        ${legend}
+        <div class="trend-plot">
+          <span class="trend-max">${escapeHtml(format(max))}</span>
+          <svg viewBox="0 0 ${width} 100" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(title)} per day">
+            ${bars}
+            ${avgY === null ? "" : `<line class="trend-avg-line" x1="0" x2="${width}" y1="${avgY}" y2="${avgY}" vector-effect="non-scaling-stroke"></line>`}
+          </svg>
+        </div>
+        <div class="trend-axis"><span>${dayLabel(days[0].date)}</span><span>${dayLabel(mid.date)}</span><span>Today</span></div>
+      </section>`;
+  }
+
+  function draw() {
+    buttons.forEach(button => button.classList.toggle("active", Number(button.dataset.range) === range));
+    const days = trendDays(entries, range);
+    const hours = minutes => formatDuration(Math.round(minutes * 60));
+    const milk = day => volume(day.milkMl);
+    const pumped = day => volume(day.pumpedMl);
+    const volumeText = v => formatVolume(isImperial() ? v * ML_PER_OZ : v);
+    const charts = [
+      { title: "Milk", value: milk, format: volumeText },
+      { title: "Feeds", value: day => day.feeds, format: v => (Number.isInteger(v) ? String(v) : v.toFixed(1)) },
+      { title: "Sleep", value: day => day.sleepMinutes, format: hours },
+      {
+        title: term("Nappies"), value: day => day.poos + day.wees, format: v => (Number.isInteger(v) ? String(v) : v.toFixed(1)),
+        stacked: [
+          { label: term("wee") + "s", cls: "trend-bar-soft", value: day => day.wees },
+          { label: term("poo") + "s", cls: "trend-bar", value: day => day.poos }
+        ]
+      },
+      { title: "Breastfeeding", value: day => day.breastMinutes, format: hours },
+      { title: "Pumped", value: pumped, format: volumeText },
+      { title: "Time between feeds", value: day => day.gapMinutes, format: hours, perDay: false }
+    ];
+    box.innerHTML = charts.map(item => chart({ ...item, days, average: averageOf(days, item.value) }))
+      .join("");
+  }
+
+  buttons.forEach(button => button.addEventListener("click", () => {
+    range = Number(button.dataset.range);
+    try {
+      localStorage.setItem("mlkbar.trendsDays", String(range));
+    } catch {}
+    draw();
+  }));
+
+  async function load() {
+    try {
+      const from = new Date();
+      from.setHours(0, 0, 0, 0);
+      from.setDate(from.getDate() - 59);
+      const response = await apiFetch(`/api/entries?from=${encodeURIComponent(from.toISOString())}`);
+      if (!response.ok) {
+        throw new Error("Failed");
+      }
+      entries = await response.json();
+      error.hidden = true;
+      draw();
+    } catch {
+      error.textContent = "Could not load trends.";
+      error.hidden = false;
+    }
+  }
+
+  draw();
+  load();
+  registerPullToRefresh(load);
+}
+
 // Child's name (Child Details page) replaces "mlkbar" next to the logo, a little smaller.
 function applyBrandName() {
   const name = (cacheRead("settings") || settingsCache || {}).babyName;
