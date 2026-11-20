@@ -2478,9 +2478,9 @@ textarea {
 }
 
 .growth-dot {
-  fill: var(--surface);
-  stroke: var(--text);
-  stroke-width: 1.6;
+  fill: var(--accent-dark);
+  stroke: var(--surface);
+  stroke-width: 1.2;
 }
 
 /* Settings: build number at the bottom */

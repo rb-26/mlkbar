@@ -1,5 +1,5 @@
 // Shown at the bottom of Settings; bumped with every change (matches the ?v= on app.js).
-const WEB_BUILD = "20261120e";
+const WEB_BUILD = "20261120f";
 const DEFAULT_FEED_SESSION_OPTIONS = ["02:00", "06:00", "08:30", "11:00", "14:00", "17:00", "19:30", "22:00"];
 const page = document.body.dataset.page;
 const LOGIN_PATH = "/login";
