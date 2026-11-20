@@ -2406,3 +2406,87 @@ textarea {
   background: var(--accent);
   opacity: 0.55;
 }
+
+/* Growth page: WHO percentile charts */
+.growth-charts {
+  display: grid;
+  gap: 18px;
+}
+
+@media (min-width: 1000px) {
+  .growth-charts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.growth-chart {
+  margin: 0;
+}
+
+.growth-chart figcaption {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--accent-dark);
+  margin-bottom: 4px;
+}
+
+.growth-chart figcaption span {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.growth-chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.growth-grid {
+  stroke: rgba(var(--ink-rgb), 0.08);
+  stroke-width: 0.6;
+}
+
+.growth-axis,
+.growth-curve-label {
+  font-size: 8px;
+  fill: var(--muted);
+}
+
+.growth-curve-label {
+  fill: var(--accent-dark);
+}
+
+.growth-curve {
+  fill: none;
+  stroke: var(--accent-dark);
+  stroke-width: 1.2;
+}
+
+.growth-curve-outer {
+  stroke-width: 0.9;
+  opacity: 0.7;
+}
+
+.growth-curve-dotted {
+  stroke-width: 0.8;
+  stroke-dasharray: 2 2;
+  opacity: 0.8;
+}
+
+.growth-curve-mid {
+  stroke-width: 1.4;
+}
+
+.growth-dot {
+  fill: var(--surface);
+  stroke: var(--text);
+  stroke-width: 1.6;
+}
+
+/* Settings: build number at the bottom */
+.build-info {
+  margin: 4px 0 0;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+}

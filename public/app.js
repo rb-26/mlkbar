@@ -1,3 +1,5 @@
+// Shown at the bottom of Settings; bumped with every change (matches the ?v= on app.js).
+const WEB_BUILD = "20261120e";
 const DEFAULT_FEED_SESSION_OPTIONS = ["02:00", "06:00", "08:30", "11:00", "14:00", "17:00", "19:30", "22:00"];
 const page = document.body.dataset.page;
 const LOGIN_PATH = "/login";
@@ -3451,6 +3453,10 @@ function renderUnitsSetting() {
 }
 
 function renderSettings() {
+  const buildInfo = document.getElementById("build-info");
+  if (buildInfo) {
+    buildInfo.textContent = `mlkbar web · build ${WEB_BUILD}`;
+  }
   renderReminderSettings();
   renderThemeSetting();
   renderUnitsSetting();
@@ -3942,6 +3948,105 @@ function whoZScore(indicator, sex, ageDays, value) {
   return z;
 }
 
+// ---------------------------------------------------------------------------
+// Growth charts: WHO percentile curves with the logged measurements as dots
+// ---------------------------------------------------------------------------
+const GROWTH_CURVES = [
+  { label: "97%", z: 1.881, cls: "growth-curve-outer" },
+  { label: "85%", z: 1.036, cls: "growth-curve-dotted" },
+  { label: "50%", z: 0, cls: "growth-curve-mid" },
+  { label: "15%", z: -1.036, cls: "growth-curve-dotted" },
+  { label: "3%", z: -1.881, cls: "growth-curve-outer" }
+];
+
+// Value at a given z for an LMS row.
+function lmsValue([L, M, S], z) {
+  return Math.abs(L) < 1e-9 ? M * Math.exp(S * z) : M * Math.pow(1 + L * S * z, 1 / L);
+}
+
+function renderGrowthCharts(container) {
+  if (!container) {
+    return;
+  }
+  const sex = settingsCache.babySex;
+  const dob = settingsCache.babyDob;
+  if (!sex || !dob) {
+    container.className = "growth-charts empty-state";
+    container.textContent = "Add the date of birth and sex in Build Your Profile to see the charts.";
+    return;
+  }
+  container.className = "growth-charts";
+  const ageNow = ageInDaysOn(formatDateInputValue(), dob) ?? 0;
+  const indicators = [
+    { key: "weight", field: "weightGrams", name: "Weight", unit: isImperial() ? "lb" : "kg",
+      toDisplay: kg => (isImperial() ? kg * 1000 / G_PER_OZ / 16 : kg), fromEntry: e => e.weightGrams / 1000 },
+    { key: "length", field: "lengthCm", name: "Length", unit: isImperial() ? "in" : "cm",
+      toDisplay: cm => (isImperial() ? cm / CM_PER_IN : cm), fromEntry: e => e.lengthCm },
+    { key: "head", field: "headCm", name: "Head circumference", unit: isImperial() ? "in" : "cm",
+      toDisplay: cm => (isImperial() ? cm / CM_PER_IN : cm), fromEntry: e => e.headCm }
+  ];
+  container.innerHTML = indicators.map(ind => {
+    const table = window.WHO_GROWTH?.[ind.key]?.[sex === "girl" ? "girls" : "boys"];
+    if (!table) {
+      return "";
+    }
+    const points = measurementsCache
+      .filter(m => m[ind.field] !== null && m[ind.field] !== undefined)
+      .map(m => ({ days: ageInDaysOn(m.date, dob), value: ind.toDisplay(ind.fromEntry(m)), date: m.date }))
+      .filter(p => p.days !== null && p.days >= 0);
+    // Range: the next 6-month step past the oldest of today / last measurement, within the WHO table.
+    const lastDays = Math.max(ageNow, ...points.map(p => p.days), 0);
+    const maxMonths = Math.min(table.length - 1, Math.max(6, Math.ceil((lastDays / DAYS_PER_MONTH + 1) / 6) * 6));
+    const rows = table.slice(0, maxMonths + 1);
+    const curves = GROWTH_CURVES.map(curve => ({ ...curve, values: rows.map(row => ind.toDisplay(lmsValue(row, curve.z))) }));
+    const shown = points.filter(p => p.days <= maxMonths * DAYS_PER_MONTH);
+    const all = [...curves.flatMap(c => c.values), ...shown.map(p => p.value)];
+    const step = niceStep((Math.max(...all) - Math.min(...all)) / 6);
+    const yMin = Math.floor(Math.min(...all) / step) * step;
+    const yMax = Math.ceil(Math.max(...all) / step) * step;
+
+    // Plot area inside a 340 x 230 viewBox (labels left, bottom and right).
+    const left = 34, right = 300, top = 10, bottom = 196;
+    const x = days => left + (days / (maxMonths * DAYS_PER_MONTH)) * (right - left);
+    const y = value => bottom - ((value - yMin) / (yMax - yMin)) * (bottom - top);
+    const monthStep = maxMonths <= 6 ? 1 : maxMonths <= 12 ? 2 : maxMonths <= 24 ? 3 : 6;
+    let grid = "";
+    for (let m = 0; m <= maxMonths; m += monthStep) {
+      const gx = x(m * DAYS_PER_MONTH);
+      grid += `<line class="growth-grid" x1="${gx}" x2="${gx}" y1="${top}" y2="${bottom}"></line>`
+        + `<text class="growth-axis" x="${gx}" y="${bottom + 13}" text-anchor="middle">${m}</text>`;
+    }
+    for (let v = yMin; v <= yMax + step / 2; v += step) {
+      const gy = y(v);
+      grid += `<line class="growth-grid" x1="${left}" x2="${right}" y1="${gy}" y2="${gy}"></line>`
+        + `<text class="growth-axis" x="${left - 4}" y="${gy + 3}" text-anchor="end">${Number(v.toFixed(2))}</text>`;
+    }
+    const lines = curves.map(curve => {
+      const d = curve.values.map((v, m) => `${m ? "L" : "M"}${x(m * DAYS_PER_MONTH).toFixed(1)} ${y(v).toFixed(1)}`).join(" ");
+      const last = curve.values[curve.values.length - 1];
+      return `<path class="growth-curve ${curve.cls}" d="${d}"></path>`
+        + `<text class="growth-curve-label" x="${right + 4}" y="${y(last) + 3}">${curve.label}</text>`;
+    }).join("");
+    const dots = shown.map(p => `<circle class="growth-dot" cx="${x(p.days).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="3.5"><title>${escapeHtml(formatDateLabel(p.date))}: ${escapeHtml(p.value.toFixed(ind.unit === "kg" ? 2 : 1))} ${ind.unit}</title></circle>`).join("");
+    return `
+      <figure class="growth-chart">
+        <figcaption>${escapeHtml(ind.name)} <span>(${ind.unit})</span></figcaption>
+        <svg viewBox="0 0 340 230" role="img" aria-label="${escapeHtml(ind.name)} growth chart">
+          ${grid}${lines}${dots}
+          <text class="growth-axis" x="${(left + right) / 2}" y="${bottom + 28}" text-anchor="middle">Age (months)</text>
+        </svg>
+        ${shown.length ? "" : `<p class="field-hint">No ${escapeHtml(ind.name.toLowerCase())} measurements yet.</p>`}
+      </figure>`;
+  }).join("");
+}
+
+// 1, 2, 2.5 or 5 x a power of ten.
+function niceStep(raw) {
+  const power = Math.pow(10, Math.floor(Math.log10(Math.max(raw, 1e-6))));
+  const n = raw / power;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * power;
+}
+
 function ordinal(n) {
   const rem100 = n % 100;
   if (rem100 >= 11 && rem100 <= 13) {
@@ -4184,8 +4289,11 @@ function renderMeasurementsPage() {
 
   const insightsContainer = document.getElementById("growth-insights");
 
+  const chartsContainer = document.getElementById("growth-charts");
+
   function renderAll() {
     renderLatestMeasurements(latestContainer);
+    renderGrowthCharts(chartsContainer);
     renderGrowthInsights(insightsContainer);
     const sorted = sortMeasurementsNewestFirst(measurementsCache);
     logContainer.innerHTML = "";
