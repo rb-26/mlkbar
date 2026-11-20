@@ -52,6 +52,23 @@
 
       <section class="panel">
         <div class="panel-heading">
+          <h2>Units &amp; Wording</h2>
+          <p>Shared with your partner's devices. Your data is always kept in metric, so switching never changes it.</p>
+        </div>
+        <div class="entry-form">
+          <label class="field">
+            <span>Units</span>
+            <select id="units-select">
+              <option value="metric">Metric (ml, kg, cm) · Nappy, Poo, Wee</option>
+              <option value="imperial">Imperial (oz, lb, in) · Diaper, Poop, Pee</option>
+            </select>
+          </label>
+          <p id="units-error" class="form-error" hidden></p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
           <h2>Appearance</h2>
         </div>
         <div class="entry-form">
@@ -113,6 +130,6 @@
     </nav>
   </div>
 
-  <script src="/app.js?v=20261120b"></script>
+  <script src="/app.js?v=20261120c"></script>
 </body>
 </html>

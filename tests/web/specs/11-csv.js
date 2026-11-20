@@ -2,6 +2,8 @@
 module.exports = async (t, { server }) => {
   const ts = new Date().toISOString();
   await t.api(server, "/api/entries", { method: "POST", body: JSON.stringify({ id: "csv-note", notes: "=SUM(A1)", timestamp: ts, createdAt: ts }) });
+  await t.api(server, "/api/entries", { method: "POST", body: JSON.stringify({ id: "csv-feed", milkMl: 90, timestamp: ts, createdAt: ts }) });
+  await t.api(server, "/api/entries", { method: "POST", body: JSON.stringify({ id: "csv-med", medicine: "Vitamin D", medicineDose: "400 IU", timestamp: ts, createdAt: ts }) });
   const response = await fetch(server.base + "/api/export.csv");
   const text = (await response.text()).replace(/^﻿/, "");
   const lines = text.trim().split(/\r?\n/);

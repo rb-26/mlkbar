@@ -12,7 +12,8 @@ let settingsCache = {
   quickFeedMl: 120,
   babyWeightUpdatedAt: null,
   latestWeightGrams: null,
-  latestWeightDate: null
+  latestWeightDate: null,
+  units: "metric"
 };
 const PULL_REFRESH_THRESHOLD = 72;
 const PULL_REFRESH_MAX_DISTANCE = 112;
@@ -605,7 +606,8 @@ function normalizeSettings(payload) {
     quickButtonOrder: Array.isArray(payload.quickButtonOrder) ? payload.quickButtonOrder : [],
     babyWeightUpdatedAt: typeof payload.babyWeightUpdatedAt === "string" && payload.babyWeightUpdatedAt ? payload.babyWeightUpdatedAt : null,
     latestWeightGrams: Number.isFinite(payload.latestWeightGrams) ? payload.latestWeightGrams : null,
-    latestWeightDate: typeof payload.latestWeightDate === "string" && payload.latestWeightDate ? payload.latestWeightDate : null
+    latestWeightDate: typeof payload.latestWeightDate === "string" && payload.latestWeightDate ? payload.latestWeightDate : null,
+    units: payload.units === "imperial" ? "imperial" : "metric"
   };
 }
 
@@ -708,11 +710,111 @@ function sumPumpedMilk(entries) {
   }, 0);
 }
 
+// ---------------------------------------------------------------------------
+// Units and wording. Data is always stored metric (ml, grams, cm); "imperial" only
+// changes what's shown and typed, plus US terms (Poop, Pee, Diaper, food spellings).
+// ---------------------------------------------------------------------------
+const ML_PER_OZ = 29.5735;
+const G_PER_OZ = 28.3495;
+const CM_PER_IN = 2.54;
+
+function isImperial() {
+  return settingsCache.units === "imperial";
+}
+
+function volumeUnit() {
+  return isImperial() ? "oz" : "ml";
+}
+
+function formatVolume(ml) {
+  if (!Number.isFinite(Number(ml))) {
+    return "";
+  }
+  return isImperial() ? `${(Number(ml) / ML_PER_OZ).toFixed(1)} oz` : `${Math.round(Number(ml))} ml`;
+}
+
 function formatWeightKg(weightGrams) {
   if (!Number.isFinite(weightGrams)) {
     return "";
   }
+  if (isImperial()) {
+    const ounces = Math.round((weightGrams / G_PER_OZ) * 10) / 10;
+    const pounds = Math.floor(ounces / 16);
+    return `${pounds} lb ${(ounces - pounds * 16).toFixed(1)} oz`;
+  }
   return `${(weightGrams / 1000).toFixed(2)} kg`;
+}
+
+function formatLength(cm) {
+  return isImperial() ? `${(Number(cm) / CM_PER_IN).toFixed(1)} in` : `${Number(cm).toFixed(1)} cm`;
+}
+
+// Small weight changes, e.g. "+150 g" / "+5.3 oz".
+function formatGrams(grams) {
+  return isImperial() ? `${(grams / G_PER_OZ).toFixed(1)} oz` : `${Math.round(grams)} g`;
+}
+
+const US_TERMS = { Poo: "Poop", poo: "poop", Wee: "Pee", wee: "pee", Nappy: "Diaper", nappy: "diaper", Nappies: "Diapers", nappies: "diapers" };
+
+function term(word) {
+  return isImperial() && US_TERMS[word] ? US_TERMS[word] : word;
+}
+
+// Australian -> US food names. Either spelling counts as the same food.
+const US_FOOD_NAMES = {
+  "Rockmelon": "Cantaloupe", "Sultanas": "Golden raisins", "Butternut pumpkin": "Butternut squash",
+  "Capsicum": "Bell pepper", "Beetroot": "Beets", "Swede": "Rutabaga", "Beef mince": "Ground beef",
+  "Prawns": "Shrimp", "Yoghurt": "Yogurt", "Porridge": "Oatmeal", "Wheat biscuits": "Wheat cereal",
+  "Kiwi fruit": "Kiwi", "Biscuit": "Cookie", "Jelly": "Jello"
+};
+const AU_FOOD_NAMES = Object.fromEntries(Object.entries(US_FOOD_NAMES).map(([au, us]) => [us.toLowerCase(), au]));
+const US_FOOD_BY_AU = Object.fromEntries(Object.entries(US_FOOD_NAMES).map(([au, us]) => [au.toLowerCase(), us]));
+
+// The food's name in the current wording (stored names are shown either way).
+function regionFoodName(name) {
+  const text = String(name || "").trim();
+  const key = text.toLowerCase();
+  if (isImperial()) {
+    return US_FOOD_BY_AU[key] || text;
+  }
+  return AU_FOOD_NAMES[key] || text;
+}
+
+// Same key for "Yoghurt" and "Yogurt", for one-per-day and counting.
+function foodKey(name) {
+  const key = String(name || "").trim().toLowerCase();
+  return (AU_FOOD_NAMES[key] || key).toLowerCase();
+}
+
+// Number typed in the current unit -> ml. Unchanged edits keep the stored value exactly.
+function volumeInputValue(ml) {
+  return isImperial() ? (Number(ml) / ML_PER_OZ).toFixed(1) : String(ml);
+}
+
+function setVolumeInput(input, ml) {
+  const label = input.closest("label")?.querySelector("span");
+  if (label) {
+    label.textContent = label.textContent.replace(/\((ml|oz)\)/, `(${volumeUnit()})`);
+  }
+  input.step = isImperial() ? "0.1" : "1";
+  input.inputMode = isImperial() ? "decimal" : "numeric";
+  input.placeholder = isImperial() ? "4" : input.dataset.mlPlaceholder || input.placeholder;
+  const value = Number.isFinite(Number(ml)) && ml !== null && ml !== "" ? volumeInputValue(ml) : "";
+  input.value = value;
+  input.dataset.original = value;
+  input.dataset.originalMl = value === "" ? "" : String(ml);
+}
+
+function volumeFromInput(input) {
+  const text = input.value.trim();
+  if (text !== "" && text === input.dataset.original && input.dataset.originalMl) {
+    return Number(input.dataset.originalMl);
+  }
+  const value = Number(text);
+  if (text === "" || !Number.isFinite(value) || value < 0) {
+    return null;
+  }
+  return isImperial() ? Math.round(value * ML_PER_OZ) : Math.round(value);
 }
 
 function escapeHtml(value) {
@@ -893,8 +995,8 @@ const QUICK_BUTTONS = [
   { key: "pumped", label: "Pumped" },
   { key: "customFeed", label: "Custom feed" },
   { key: "breastfeed", label: "Breastfeed" },
-  { key: "poo", label: "Poo" },
-  { key: "wee", label: "Wee" },
+  { key: "poo", label: "Poo", term: true },
+  { key: "wee", label: "Wee", term: true },
   { key: "nap", label: "Nap" },
   { key: "food", label: "Add food" },
   { key: "note", label: "Note" },
@@ -924,7 +1026,7 @@ function uniqueFoods(entries) {
     .filter(entry => entryKind(entry) === "food")
     .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
     .forEach(entry => {
-      const key = entry.food.trim().toLowerCase();
+      const key = foodKey(entry.food);
       if (!byName.has(key)) {
         byName.set(key, { name: entry.food.trim(), ids: [] });
       }
@@ -935,7 +1037,7 @@ function uniqueFoods(entries) {
 
 // Foods are shown as plain names (no emoji) everywhere.
 function foodLabel(name) {
-  return String(name);
+  return regionFoodName(name);
 }
 
 const POO_EMOJI = { wee: "💧", 1: "💩", 2: "💩💩", 3: "💩💩💩", gun: "🔫" };
@@ -1011,7 +1113,7 @@ function breastSummary(entry) {
 function entrySummary(entry) {
   switch (entryKind(entry)) {
     case "pumped":
-      return `${escapeHtml(entry.milkMl)} ml Pumped`;
+      return `${escapeHtml(formatVolume(entry.milkMl))} Pumped`;
     case "breast":
       return `Breastfed ${escapeHtml(breastSummary(entry))}`;
     case "food":
@@ -1019,7 +1121,7 @@ function entrySummary(entry) {
     case "medicine":
       return escapeHtml(medicineLabel(entry));
     case "feed":
-      return `${escapeHtml(entry.milkMl)} ml`;
+      return escapeHtml(formatVolume(entry.milkMl));
     case "poo":
       return escapeHtml(POO_EMOJI[entry.poo] || "💩");
     case "nap":
@@ -1433,10 +1535,20 @@ const ENTRY_UI_HTML = `
   <dialog id="measure-dialog" class="entry-dialog" aria-labelledby="measure-dialog-title">
     <form id="measure-dialog-form" class="entry-form" novalidate>
       <h2 id="measure-dialog-title">Measurement</h2>
-      <label class="field">
+      <label class="field" id="measure-weight-metric">
         <span>Weight (grams)</span>
         <input id="measure-dialog-weight" type="number" min="1" max="30000" step="1" inputmode="numeric" placeholder="4200" />
       </label>
+      <div class="field-pair" id="measure-weight-imperial" hidden>
+        <label class="field">
+          <span>Weight (lb)</span>
+          <input id="measure-dialog-lb" type="number" min="0" max="66" step="1" inputmode="numeric" placeholder="9" />
+        </label>
+        <label class="field">
+          <span>(oz)</span>
+          <input id="measure-dialog-oz" type="number" min="0" max="15.9" step="0.1" inputmode="decimal" placeholder="4.5" />
+        </label>
+      </div>
       <div class="field-pair">
         <label class="field">
           <span>Length (cm)</span>
@@ -1566,9 +1678,7 @@ function createEntryUi({ onEntrySaved = () => {}, onEntryRemoved = () => {}, onM
   }
 
   function parseMl(input) {
-    const text = input.value.trim();
-    const value = Number(text);
-    return text === "" || !Number.isFinite(value) || value < 0 ? null : Math.round(value);
+    return volumeFromInput(input);
   }
 
   function editTimestamp(dateInput, timeInput) {
@@ -1596,11 +1706,11 @@ function createEntryUi({ onEntrySaved = () => {}, onEntryRemoved = () => {}, onM
     $("feed-dialog-title").textContent = entry ? "Edit feed" : "Custom feed";
     if (entry) {
       const parts = timestampToLocalParts(entry.timestamp);
-      feedMl.value = typeof entry.milkMl === "number" ? String(entry.milkMl) : "";
+      setVolumeInput(feedMl, typeof entry.milkMl === "number" ? entry.milkMl : null);
       feedDate.value = parts.date;
       feedTime.value = parts.time;
     } else {
-      feedMl.value = "";
+      setVolumeInput(feedMl, null);
       feedDate.value = "";
       feedTime.value = currentLocalDateTimeParts().time;
     }
@@ -1648,7 +1758,7 @@ function createEntryUi({ onEntrySaved = () => {}, onEntryRemoved = () => {}, onM
     try {
       await saveEntry(entry, "feed");
       closeDialog(feedDialog);
-      showToast(editing ? "Feed updated." : `${milkMl} ml feed added at ${addedAt(timestamp)}.`, editing ? null : undoEntry(entry.id));
+      showToast(editing ? "Feed updated." : `${formatVolume(milkMl)} feed added at ${addedAt(timestamp)}.`, editing ? null : undoEntry(entry.id));
     } catch {
       feedSave.disabled = false;
       setError(feedError, "Could not save feed.");
@@ -1673,11 +1783,11 @@ function createEntryUi({ onEntrySaved = () => {}, onEntryRemoved = () => {}, onM
     $("pumped-dialog-title").textContent = entry ? "Edit pumped" : "Pumped";
     if (entry) {
       const parts = timestampToLocalParts(entry.timestamp);
-      pumpedMl.value = typeof entry.milkMl === "number" ? String(entry.milkMl) : "";
+      setVolumeInput(pumpedMl, typeof entry.milkMl === "number" ? entry.milkMl : null);
       pumpedDate.value = parts.date;
       pumpedTime.value = parts.time;
     } else {
-      pumpedMl.value = "";
+      setVolumeInput(pumpedMl, null);
       pumpedDate.value = "";
       pumpedTime.value = currentLocalDateTimeParts().time;
     }
@@ -1723,7 +1833,7 @@ function createEntryUi({ onEntrySaved = () => {}, onEntryRemoved = () => {}, onM
     try {
       await saveEntry(entry, "pumped");
       closeDialog(pumpedDialog);
-      showToast(editing ? "Pumped entry updated." : `${milkMl} ml pumped added at ${addedAt(timestamp)}.`, editing ? null : undoEntry(entry.id));
+      showToast(editing ? "Pumped entry updated." : `${formatVolume(milkMl)} pumped added at ${addedAt(timestamp)}.`, editing ? null : undoEntry(entry.id));
     } catch {
       pumpedSave.disabled = false;
       setError(pumpedError, "Could not save pumped entry.");
@@ -1913,7 +2023,7 @@ function createEntryUi({ onEntrySaved = () => {}, onEntryRemoved = () => {}, onM
     pooEditing = entry;
     setError(pooError, "");
     pooSaving = false;
-    $("poo-dialog-title").textContent = entry ? "Edit poo" : "Poo";
+    $("poo-dialog-title").textContent = entry ? `Edit ${term("poo")}` : term("Poo");
     pooDialog.querySelectorAll("[data-poo]").forEach(option => {
       option.classList.toggle("poo-option-selected", Boolean(entry) && option.getAttribute("data-poo") === entry.poo);
     });
@@ -1957,7 +2067,7 @@ function createEntryUi({ onEntrySaved = () => {}, onEntryRemoved = () => {}, onM
     try {
       await saveEntry(entry, "poo");
       closeDialog(pooDialog);
-      showToast(editing ? "Poo updated." : `${POO_EMOJI[poo]} logged at ${formatTime(timestamp)}.`, editing ? null : undoEntry(entry.id));
+      showToast(editing ? `${term("Poo")} updated.` : `${POO_EMOJI[poo]} logged at ${formatTime(timestamp)}.`, editing ? null : undoEntry(entry.id));
     } catch {
       setError(pooError, "Could not save. Check your connection and try again.");
     } finally {
@@ -2258,14 +2368,37 @@ function createEntryUi({ onEntrySaved = () => {}, onEntryRemoved = () => {}, onM
   const measureSave = $("measure-dialog-save");
   let measureEditing = null;
 
+  const measureLb = $("measure-dialog-lb");
+  const measureOz = $("measure-dialog-oz");
+
+  // Imperial: lb + oz and inches on screen; stored as grams and cm. Unchanged values are kept exactly.
   function openMeasurement(entry = null) {
     measureEditing = entry;
     setError(measureError, "");
     measureSave.disabled = false;
     $("measure-dialog-title").textContent = entry ? "Edit measurement" : "Add measurement";
+    const imperial = isImperial();
+    $("measure-weight-metric").hidden = imperial;
+    $("measure-weight-imperial").hidden = !imperial;
+    measureLength.closest("label").querySelector("span").textContent = imperial ? "Length (in)" : "Length (cm)";
+    measureHead.closest("label").querySelector("span").textContent = imperial ? "Head (in)" : "Head (cm)";
+    [measureLength, measureHead].forEach(input => {
+      input.min = imperial ? "8" : input === measureLength ? "30" : "20";
+      input.max = imperial ? "52" : input === measureLength ? "130" : "60";
+    });
     measureWeight.value = entry?.weightGrams ?? "";
-    measureLength.value = entry?.lengthCm ?? "";
-    measureHead.value = entry?.headCm ?? "";
+    if (entry?.weightGrams) {
+      const ounces = Math.round((entry.weightGrams / G_PER_OZ) * 10) / 10;
+      measureLb.value = String(Math.floor(ounces / 16));
+      measureOz.value = (ounces - Math.floor(ounces / 16) * 16).toFixed(1);
+    } else {
+      measureLb.value = "";
+      measureOz.value = "";
+    }
+    const inches = cm => (cm === null || cm === undefined ? "" : (cm / CM_PER_IN).toFixed(1));
+    measureLength.value = imperial ? inches(entry?.lengthCm) : entry?.lengthCm ?? "";
+    measureHead.value = imperial ? inches(entry?.headCm) : entry?.headCm ?? "";
+    measureDialog.dataset.original = JSON.stringify([measureLb.value, measureOz.value, measureLength.value, measureHead.value]);
     measureDate.value = entry?.date || formatDateInputValue();
     openDialog(measureDialog);
     measureWeight.focus();
@@ -2287,19 +2420,40 @@ function createEntryUi({ onEntrySaved = () => {}, onEntryRemoved = () => {}, onM
   $("measure-dialog-form").addEventListener("submit", async event => {
     event.preventDefault();
     const editing = measureEditing;
-    const weight = readOptionalNumber(measureWeight);
-    const length = readOptionalNumber(measureLength);
-    const head = readOptionalNumber(measureHead);
+    let weight = readOptionalNumber(measureWeight);
+    let length = readOptionalNumber(measureLength);
+    let head = readOptionalNumber(measureHead);
+    if (isImperial()) {
+      const original = JSON.parse(measureDialog.dataset.original || "[]");
+      const lb = readOptionalNumber(measureLb);
+      const oz = readOptionalNumber(measureOz);
+      if (measureLb.value === original[0] && measureOz.value === original[1] && editing) {
+        weight = { value: editing.weightGrams ?? null, ok: true };
+      } else if (lb.value === null && oz.value === null) {
+        weight = { value: null, ok: true };
+      } else {
+        const total = (lb.value || 0) * 16 + (oz.value || 0);
+        weight = { value: Math.round(total * G_PER_OZ), ok: lb.ok && oz.ok && total > 0 };
+      }
+      const toCm = (input, item, index, originalCm) => {
+        if (input.value === original[index] && editing) {
+          return { value: originalCm ?? null, ok: true };
+        }
+        return item.value === null ? item : { value: Math.round(item.value * CM_PER_IN * 10) / 10, ok: item.ok };
+      };
+      length = toCm(measureLength, length, 2, editing?.lengthCm);
+      head = toCm(measureHead, head, 3, editing?.headCm);
+    }
     if (!weight.ok || (weight.value !== null && (!Number.isInteger(weight.value) || weight.value <= 0 || weight.value > 30000))) {
-      setError(measureError, "Weight must be in whole grams.");
+      setError(measureError, isImperial() ? "Check the weight in pounds and ounces." : "Weight must be in whole grams.");
       return;
     }
     if (!length.ok || (length.value !== null && (length.value < 30 || length.value > 130))) {
-      setError(measureError, "Length should be between 30 and 130 cm.");
+      setError(measureError, isImperial() ? "Length should be between 12 and 51 in." : "Length should be between 30 and 130 cm.");
       return;
     }
     if (!head.ok || (head.value !== null && (head.value < 20 || head.value > 60))) {
-      setError(measureError, "Head circumference should be between 20 and 60 cm.");
+      setError(measureError, isImperial() ? "Head circumference should be between 8 and 23 in." : "Head circumference should be between 20 and 60 cm.");
       return;
     }
     if (weight.value === null && length.value === null && head.value === null) {
@@ -2452,7 +2606,7 @@ function renderHome() {
     lastFeedTime.textContent = `${isToday(lastFeed.timestamp) ? "" : "Yesterday "}${formatTime(lastFeed.timestamp)}`;
     const what = entryKind(lastFeed) === "breast"
       ? `Breastfed ${formatDuration(breastTotalSeconds(lastFeed))}`
-      : `${lastFeed.milkMl} ml`;
+      : formatVolume(lastFeed.milkMl);
     lastFeedMeta.textContent = `${what} · ${formatAgo(lastFeed.timestamp)}`;
   }
 
@@ -2492,8 +2646,8 @@ function renderHome() {
 
   function renderEntries(entries) {
     const todaysEntries = entries.filter(entry => isToday(entry.timestamp));
-    todayTotal.textContent = `${sumFeedMilk(todaysEntries)} ml`;
-    todayPumpedTotal.textContent = `${sumPumpedMilk(todaysEntries)} ml`;
+    todayTotal.textContent = formatVolume(sumFeedMilk(todaysEntries));
+    todayPumpedTotal.textContent = formatVolume(sumPumpedMilk(todaysEntries));
     renderLastFeed(entries);
     renderNextFeed();
   }
@@ -2539,7 +2693,7 @@ function renderHome() {
   const quickFeedLabel = quickFeedButton.querySelector(".quick-add-label");
   const quickFeedMl = () => settingsCache.quickFeedMl || 120;
   const renderQuickFeedLabel = () => {
-    quickFeedLabel.textContent = `${quickFeedMl()} ml feed`;
+    quickFeedLabel.textContent = `${formatVolume(quickFeedMl())} feed`;
   };
   quickFeedButton.addEventListener("click", () => {
     const timestamp = nowTimestamp();
@@ -2551,7 +2705,7 @@ function renderHome() {
       feedSession: null,
       timestamp,
       createdAt: timestamp
-    }, "feed", `${ml} ml feed added at ${formatTime(timestamp)}.`);
+    }, "feed", `${formatVolume(ml)} feed added at ${formatTime(timestamp)}.`);
   });
   // Buttons turned off in Settings are hidden; an odd last button spans the row.
   function applyQuickButtons() {
@@ -2584,6 +2738,8 @@ function renderHome() {
   }).catch(() => null);
 
   document.getElementById("quick-poo").addEventListener("click", () => ui.openPoo());
+  document.querySelector("#quick-poo .quick-add-label").textContent = term("Poo");
+  document.querySelector("#quick-wee .quick-add-label").textContent = term("Wee");
   // Wee: one tap, no popup.
   const quickWeeButton = document.getElementById("quick-wee");
   quickWeeButton.addEventListener("click", () => {
@@ -2596,7 +2752,7 @@ function renderHome() {
       poo: "wee",
       timestamp,
       createdAt: timestamp
-    }, "poo", `💧 Wee logged at ${formatTime(timestamp)}.`);
+    }, "poo", `💧 ${term("Wee")} logged at ${formatTime(timestamp)}.`);
   });
   document.getElementById("quick-custom-feed").addEventListener("click", () => ui.openFeed());
   document.getElementById("quick-pumped").addEventListener("click", () => ui.openPumped());
@@ -3017,7 +3173,7 @@ function countEntries(entries) {
     const kind = entryKind(entry);
     if (kind === "food") {
       // Each food counts once per day.
-      const key = `${localDayKey(entry.timestamp)}|${entry.food.trim().toLowerCase()}`;
+      const key = `${localDayKey(entry.timestamp)}|${foodKey(entry.food)}`;
       if (foodsSeen.has(key)) {
         return;
       }
@@ -3092,15 +3248,15 @@ function createDayCard(container, dayKey) {
         ...(counts.breastfeeds ? [pluralize(counts.breastfeeds, "breastfeed")] : []),
         pluralize(counts.pumps, "pump"),
         ...(counts.foods ? [pluralize(counts.foods, "food")] : []),
-        ...(counts.wees ? [pluralize(counts.wees, "wee")] : []),
-        pluralize(counts.poos, "poo"), pluralize(counts.naps, "nap"),
+        ...(counts.wees ? [pluralize(counts.wees, term("wee"))] : []),
+        pluralize(counts.poos, term("poo")), pluralize(counts.naps, "nap"),
         ...(counts.medicines ? [pluralize(counts.medicines, "medicine")] : [])
       ])(countEntries(dayEntries)))}
     </div>
     <div class="day-header-side">
       <div class="day-total-stack">
-        <strong class="day-total">${sumFeedMilk(dayEntries)} ml feed</strong>
-        <p class="day-total-sub">${sumPumpedMilk(dayEntries)} ml pumped</p>
+        <strong class="day-total">${formatVolume(sumFeedMilk(dayEntries))} feed</strong>
+        <p class="day-total-sub">${formatVolume(sumPumpedMilk(dayEntries))} pumped</p>
       </div>
       <span class="day-toggle-indicator" aria-hidden="true"></span>
     </div>
@@ -3163,15 +3319,15 @@ function createMonthGroup(container, monthKey, todayKey) {
         ...(counts.breastfeeds ? [pluralize(counts.breastfeeds, "breastfeed")] : []),
         pluralize(counts.pumps, "pump"),
         ...(counts.foods ? [pluralize(counts.foods, "food")] : []),
-        ...(counts.wees ? [pluralize(counts.wees, "wee")] : []),
-        pluralize(counts.poos, "poo"),
+        ...(counts.wees ? [pluralize(counts.wees, term("wee"))] : []),
+        pluralize(counts.poos, term("poo")),
         pluralize(counts.naps, "nap"), pluralize(counts.notes, "note"),
         ...(counts.medicines ? [pluralize(counts.medicines, "medicine")] : [])
       ])(countEntries(monthEntries)))}
       </div>
       <div class="day-total-stack">
-        <strong class="day-total">${avgFeed === null ? "–" : `${avgFeed} ml`}/day feed</strong>
-        <p class="day-total-sub">${avgPumped === null ? "–" : `${avgPumped} ml`}/day pumped</p>
+        <strong class="day-total">${avgFeed === null ? "–" : formatVolume(avgFeed)}/day feed</strong>
+        <p class="day-total-sub">${avgPumped === null ? "–" : formatVolume(avgPumped)}/day pumped</p>
       </div>
       </div>
     </div>
@@ -3264,9 +3420,40 @@ function renderThemeSetting() {
   });
 }
 
+// Metric / imperial (shared with every device). Saves the full settings so nothing else changes.
+function renderUnitsSetting() {
+  const select = document.getElementById("units-select");
+  if (!select) {
+    return;
+  }
+  const error = document.getElementById("units-error");
+  select.value = settingsCache.units || "metric";
+  fetchSettings().then(settings => {
+    if (document.activeElement !== select) {
+      select.value = settings.units;
+    }
+  }).catch(() => null);
+  select.addEventListener("change", async () => {
+    select.disabled = true;
+    error.hidden = true;
+    try {
+      const current = await fetchSettings();
+      await saveSettings({ ...current, units: select.value });
+      await fetchSettings();
+      window.location.reload();
+    } catch {
+      error.textContent = "Could not save. Check your connection and try again.";
+      error.hidden = false;
+      select.value = settingsCache.units || "metric";
+      select.disabled = false;
+    }
+  });
+}
+
 function renderSettings() {
   renderReminderSettings();
   renderThemeSetting();
+  renderUnitsSetting();
   const form = document.getElementById("settings-form");
   const babyDobInput = document.getElementById("baby-dob");
   const babySexInput = document.getElementById("baby-sex");
@@ -3291,7 +3478,7 @@ function renderSettings() {
       .filter(Boolean)
       .map(item => `
         <div class="toggle-row" data-quick-row="${item.key}">
-          <label for="quick-toggle-${item.key}">${escapeHtml(item.label)}</label>
+          <label for="quick-toggle-${item.key}">${escapeHtml(item.term ? term(item.label) : item.label)}</label>
           <span class="order-buttons">
             <button type="button" class="order-button" data-move="up" aria-label="Move ${escapeHtml(item.label)} up">${arrow("M6 15L12 9L18 15")}</button>
             <button type="button" class="order-button" data-move="down" aria-label="Move ${escapeHtml(item.label)} down">${arrow("M6 9L12 15L18 9")}</button>
@@ -3350,9 +3537,9 @@ function renderSettings() {
     const babyDob = babyDobInput.value.trim() || null;
     const babySex = babySexInput.value || null;
     const babyName = babyNameInput.value.trim() || null;
-    const quickFeedMl = Number(quickFeedInput.value);
+    const quickFeedMl = volumeFromInput(quickFeedInput);
     if (!Number.isInteger(quickFeedMl) || quickFeedMl < 1 || quickFeedMl > 2000) {
-      showError("Quick feed amount must be a whole number of ml (1 to 2000).");
+      showError(isImperial() ? "Quick feed amount must be between 0.1 and 67 oz." : "Quick feed amount must be a whole number of ml (1 to 2000).");
       return;
     }
 
@@ -3388,10 +3575,10 @@ function renderSettings() {
     babyDobInput.value = cachedDob;
     babySexInput.value = cachedSex;
     babyNameInput.value = settingsCache.babyName ?? "";
-    quickFeedInput.value = settingsCache.quickFeedMl;
+    setVolumeInput(quickFeedInput, settingsCache.quickFeedMl);
     renderQuickToggles(settingsCache);
   }
-  const cachedQuickFeed = renderedFromCache ? String(settingsCache.quickFeedMl) : null;
+  const cachedQuickFeed = renderedFromCache ? quickFeedInput.value : null;
 
   (form ? fetchSettings() : Promise.resolve(null))
     .then(settings => {
@@ -3410,7 +3597,7 @@ function renderSettings() {
         babyNameInput.value = settings.babyName ?? "";
       }
       if (!renderedFromCache || (quickFeedInput.value === cachedQuickFeed && document.activeElement !== quickFeedInput)) {
-        quickFeedInput.value = settings.quickFeedMl;
+        setVolumeInput(quickFeedInput, settings.quickFeedMl);
       }
     })
     .catch(() => {
@@ -3801,8 +3988,8 @@ function measurementParts(entry) {
     parts.push({ indicator, label: MEASURE_LABELS[indicator].name, text, percentile, note });
   };
   add("weight", entry.weightGrams, entry.weightGrams / 1000, formatWeightKg(entry.weightGrams));
-  add("length", entry.lengthCm, entry.lengthCm, `${Number(entry.lengthCm).toFixed(1)} cm`);
-  add("head", entry.headCm, entry.headCm, `${Number(entry.headCm).toFixed(1)} cm`);
+  add("length", entry.lengthCm, entry.lengthCm, formatLength(entry.lengthCm));
+  add("head", entry.headCm, entry.headCm, formatLength(entry.headCm));
   return parts;
 }
 
@@ -3920,9 +4107,16 @@ function renderGrowthInsights(container) {
     let comparison = "";
     if (guide && ageInDaysOn(last.date, dob) <= 366) {
       const position = perDay < guide.min ? "below" : perDay > guide.max ? "above" : "within";
-      comparison = `, ${position} the typical ${guide.text} for ${guide.label}`;
+      const guideText = isImperial()
+        ? (guide.min === guide.max
+          ? `${(guide.min / G_PER_OZ).toFixed(1)} oz/day`
+          : `${(guide.min / G_PER_OZ).toFixed(1)} to ${(guide.max / G_PER_OZ).toFixed(1)} oz/day`)
+        : guide.text;
+      comparison = `, ${position} the typical ${guideText} for ${guide.label}`;
     }
-    lines.push(`Recent gain: ${perDay >= 0 ? "+" : ""}${Math.round(last.weightGrams - prev.weightGrams)} g over ${span} days (${perDay.toFixed(1)} g/day${comparison}).`);
+    const perDayText = isImperial() ? `${(perDay / G_PER_OZ).toFixed(2)} oz/day` : `${perDay.toFixed(1)} g/day`;
+    const gain = last.weightGrams - prev.weightGrams;
+    lines.push(`Recent gain: ${gain >= 0 ? "+" : "-"}${formatGrams(Math.abs(gain))} over ${span} days (${perDayText}${comparison}).`);
   } else if (weights.length === 1) {
     lines.push("Add a second weight to see the recent gain.");
   }
@@ -4085,8 +4279,8 @@ function renderFoodDiary() {
 
   function eatenOnChosenDay(name) {
     const dayKey = localDayKey(buildTimestamp(chosenDay(), "00:00"));
-    const key = name.trim().toLowerCase();
-    return foodEntries().filter(item => localDayKey(item.timestamp) === dayKey && item.food.trim().toLowerCase() === key);
+    const key = foodKey(name);
+    return foodEntries().filter(item => localDayKey(item.timestamp) === dayKey && foodKey(item.food) === key);
   }
 
   // Allergens-style row: name (+ optional hint) and one pink dot, filled when had that day.
@@ -4102,7 +4296,7 @@ function renderFoodDiary() {
     groupsBox.innerHTML = COMMON_FOOD_GROUPS.map(group => `
       <div class="food-group">
         <p class="food-results-label">${escapeHtml(group.title)}</p>
-        <div class="food-rows">${group.foods.map(name => row(name)).join("")}</div>
+        <div class="food-rows">${group.foods.map(name => row(regionFoodName(name))).join("")}</div>
       </div>`).join("");
   }
 
@@ -4133,7 +4327,7 @@ function renderFoodDiary() {
       const seen = new Set();
       const recent = [];
       foodEntries().forEach(entry => {
-        const key = entry.food.toLowerCase();
+        const key = foodKey(entry.food);
         if (!seen.has(key) && recent.length < 8) {
           seen.add(key);
           recent.push(entry);
@@ -4141,18 +4335,19 @@ function renderFoodDiary() {
       });
       resultsLabel.textContent = recent.length ? "Recent" : "";
       resultsLabel.hidden = !recent.length;
-      results.innerHTML = recent.map(entry => row(entry.food)).join("");
+      results.innerHTML = recent.map(entry => row(foodLabel(entry.food))).join("");
       suggested.hidden = false;
       drawGroups();
       return;
     }
     suggested.hidden = true;
     resultsLabel.hidden = false;
-    const matches = FOODS
+    const named = FOODS.map(item => ({ ...item, name: regionFoodName(item.name) }));
+    const matches = named
       .filter(item => item.name.toLowerCase().includes(query) || item.category.toLowerCase().includes(query))
       .sort((a, b) => Number(!a.name.toLowerCase().startsWith(query)) - Number(!b.name.toLowerCase().startsWith(query)))
       .slice(0, 30);
-    const exact = FOODS.some(item => item.name.toLowerCase() === query);
+    const exact = named.some(item => foodKey(item.name) === foodKey(query));
     const typed = search.value.trim();
     resultsLabel.textContent = matches.length ? "Results" : "Not in the list";
     results.innerHTML = matches.map(item => row(item.name)).join("")
@@ -4201,7 +4396,7 @@ function renderFoodDiary() {
     const timestamp = buildTimestamp(dayValue, "00:00");
     // One of each food per day.
     const dayKey = localDayKey(timestamp);
-    if (foodEntries().some(item => localDayKey(item.timestamp) === dayKey && item.food.trim().toLowerCase() === food.toLowerCase())) {
+    if (foodEntries().some(item => localDayKey(item.timestamp) === dayKey && foodKey(item.food) === foodKey(food))) {
       search.value = "";
       drawResults();
       ui.showToast(`${foodLabel(food)} is already in ${isToday(timestamp) ? "today's" : "that day's"} diary.`);
@@ -4422,6 +4617,12 @@ function renderAllergensPage() {
   });
 }
 
+// Units/wording are needed before anything renders.
+if (page !== "login") {
+  applyCachedSettings();
+}
+const renderedUnits = settingsCache.units || "metric";
+
 if (page === "home") {
   renderHome();
 }
@@ -4462,7 +4663,13 @@ function applyBrandName() {
 
 if (page !== "login") {
   applyBrandName();
-  fetchSettings().then(applyBrandName).catch(() => null);
+  fetchSettings().then(() => {
+    applyBrandName();
+    // Changed on another device: redraw everything in the new units.
+    if ((settingsCache.units || "metric") !== renderedUnits) {
+      window.location.reload();
+    }
+  }).catch(() => null);
 }
 
 clearLegacyServiceWorkers();

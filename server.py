@@ -120,6 +120,10 @@ MAX_ID_LENGTH = 64
 MAX_NOTES_LENGTH = 5000
 MAX_FOOD_LENGTH = 80
 MAX_MEDICINE_LENGTH = 80
+UNITS_VALUES = {"metric", "imperial"}
+ML_PER_OZ = 29.5735
+G_PER_OZ = 28.3495
+CM_PER_IN = 2.54
 MAX_DOSE_LENGTH = 40
 MAX_MILK_ML = 2000
 MAX_WEIGHT_GRAMS = 30000
@@ -483,6 +487,8 @@ def init_db():
             conn.execute("ALTER TABLE settings ADD COLUMN baby_name TEXT")
         if "quick_feed_ml" not in settings_columns:
             conn.execute("ALTER TABLE settings ADD COLUMN quick_feed_ml INTEGER")
+        if "units" not in settings_columns:
+            conn.execute("ALTER TABLE settings ADD COLUMN units TEXT")
         if "hidden_quick_buttons" not in settings_columns:
             conn.execute("ALTER TABLE settings ADD COLUMN hidden_quick_buttons TEXT")
         if "quick_button_order" not in settings_columns:
@@ -684,7 +690,7 @@ def get_settings():
         row = conn.execute(
             """
             SELECT feeding_times, baby_weight_grams, baby_dob, baby_weight_updated_at, baby_sex, quick_feed_ml,
-                   hidden_quick_buttons, quick_button_order, baby_name
+                   hidden_quick_buttons, quick_button_order, baby_name, units
             FROM settings
             WHERE id = 1
             """
@@ -719,6 +725,7 @@ def get_settings():
         "babySex": row["baby_sex"] if row else None,
         # Shown in place of "mlkbar" next to the logo when set.
         "babyName": row["baby_name"] if row and row["baby_name"] else None,
+        "units": row["units"] if row and row["units"] in UNITS_VALUES else "metric",
         # Amount for the one-tap feed button (shared by the web and iOS apps).
         "quickFeedMl": (row["quick_feed_ml"] if row and row["quick_feed_ml"] else DEFAULT_QUICK_FEED_ML),
         # Add page buttons turned off in Settings.
@@ -1392,6 +1399,15 @@ def csv_rows():
         measurements = conn.execute(
             "SELECT date, weight_grams, length_cm, head_cm FROM measurements ORDER BY date, created_at"
         ).fetchall()
+    imperial = get_settings().get("units") == "imperial"
+    unit = "oz" if imperial else "ml"
+
+    def amount_of(ml):
+        return round(ml / ML_PER_OZ, 1) if imperial else ml
+
+    def word(text):
+        return us_word(text) if imperial else text
+
     rows = []
     for row in entries:
         local = datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00")).astimezone(LOCAL_TZ)
@@ -1399,9 +1415,9 @@ def csv_rows():
         breast = [(label, row[key] or 0) for label, key in
                   (("Left", "breast_left_seconds"), ("Right", "breast_right_seconds"), ("Both", "breast_both_seconds"))]
         if row["entry_type"] == "pumped":
-            kind, amount = "Pumped", row["milk_ml"]
+            kind, amount = "Pumped", amount_of(row["milk_ml"])
         elif row["milk_ml"] is not None:
-            kind, amount = "Bottle feed", row["milk_ml"]
+            kind, amount = "Bottle feed", amount_of(row["milk_ml"])
         elif sum(seconds for _, seconds in breast):
             kind = "Breastfeed"
             minutes = round(sum(seconds for _, seconds in breast) / 60)
@@ -1412,21 +1428,21 @@ def csv_rows():
         elif row["food"]:
             kind, details = "Food", row["food"]
         elif row["poo"] == "wee":
-            kind, details = "Wee", ""
+            kind, details = word("Wee"), ""
         elif row["poo"]:
-            kind, details = "Poo", {"1": "Small", "2": "Medium", "3": "Large"}.get(row["poo"], row["poo"])
+            kind, details = word("Poo"), {"1": "Small", "2": "Medium", "3": "Large"}.get(row["poo"], row["poo"])
         elif row["nap_minutes"]:
             kind, minutes, details = "Nap", row["nap_minutes"], ""
         rows.append([local.strftime("%Y-%m-%d"), local.strftime("%H:%M"), kind,
-                     amount if amount != "" else "", "ml" if amount != "" else "", minutes, details])
+                     amount if amount != "" else "", unit if amount != "" else "", minutes, details])
     for m in measurements:
         parts = []
         if m["weight_grams"] is not None:
-            parts.append(f"Weight {m['weight_grams'] / 1000:.2f} kg")
+            parts.append(f"Weight {weight_text(m['weight_grams'], imperial)}")
         if m["length_cm"] is not None:
-            parts.append(f"Length {m['length_cm']:.1f} cm")
+            parts.append(f"Length {length_text(m['length_cm'], imperial)}")
         if m["head_cm"] is not None:
-            parts.append(f"Head {m['head_cm']:.1f} cm")
+            parts.append(f"Head {length_text(m['head_cm'], imperial)}")
         rows.append([m["date"], "", "Measurement", "", "", "", "; ".join(parts)])
     rows.sort(key=lambda r: (r[0], r[1]))
     return [["Date", "Time", "Type", "Amount", "Unit", "Duration (min)", "Details"]] + rows
@@ -1535,6 +1551,29 @@ def report_days(rows, days):
     return [(k, by_day[k]) for k in keys]
 
 
+def volume_text(ml, imperial):
+    return f"{ml / ML_PER_OZ:.1f} oz" if imperial else f"{round(ml)} ml"
+
+
+def weight_text(grams, imperial):
+    if not imperial:
+        return f"{grams / 1000:.2f} kg"
+    ounces = round(grams / G_PER_OZ, 1)
+    pounds = int(ounces // 16)
+    return f"{pounds} lb {ounces - pounds * 16:.1f} oz"
+
+
+def length_text(cm, imperial):
+    return f"{cm / CM_PER_IN:.1f} in" if imperial else f"{cm:.1f} cm"
+
+
+US_WORDS = {"Poo": "Poop", "Poos": "Poops", "Wee": "Pee", "Wees": "Pees", "poo": "poop", "wee": "pee"}
+
+
+def us_word(text):
+    return US_WORDS.get(text, text)
+
+
 def build_report_pdf(days):
     from io import BytesIO
     from xml.sax.saxutils import escape
@@ -1564,6 +1603,13 @@ def build_report_pdf(days):
     day_rows = report_days(rows, days)
 
     name = settings.get("babyName") or "mlkbar"
+    imperial = settings.get("units") == "imperial"
+
+    def vol(ml):
+        return volume_text(ml, imperial)
+
+    def word(text):
+        return us_word(text) if imperial else text
     story = [Paragraph(f"{name} report", title)]
     period = f"Last {days} days" if days else "All time"
     if day_rows:
@@ -1581,10 +1627,10 @@ def build_report_pdf(days):
         n = len(day_rows)
         total = lambda key: sum(d[key] for _, d in day_rows)  # noqa: E731
         summary = [
-            ["Feeds / day", f"{total('feeds') / n:.1f}", "Milk / day", f"{round(total('feed_ml') / n)} ml"],
+            ["Feeds / day", f"{total('feeds') / n:.1f}", "Milk / day", vol(total('feed_ml') / n)],
             ["Breastfeeds / day", f"{total('breast') / n:.1f}", "Breastfeeding / day", _fmt_minutes(total("breast_s") / 60 / n)],
-            ["Pumped / day", f"{round(total('pumped') / n)} ml", "Naps / day", f"{total('naps') / n:.1f} ({_fmt_minutes(total('nap_min') / n)})"],
-            ["Wees", str(total("wees")), "Poos", str(total("poos"))],
+            ["Pumped / day", vol(total('pumped') / n), "Naps / day", f"{total('naps') / n:.1f} ({_fmt_minutes(total('nap_min') / n)})"],
+            [word("Wees"), str(total("wees")), word("Poos"), str(total("poos"))],
         ]
         story += [Paragraph("Summary", heading)]
         table = Table(summary, hAlign="LEFT", colWidths=[38 * mm, 42 * mm, 42 * mm, 46 * mm])
@@ -1598,13 +1644,13 @@ def build_report_pdf(days):
     # Daily table
     story.append(Paragraph("Day by day", heading))
     if day_rows:
-        data = [["Date", "Feeds", "Breastfed", "Pumped", "Naps", "Wees", "Poos"]]
+        data = [["Date", "Feeds", "Breastfed", "Pumped", "Naps", word("Wees"), word("Poos")]]
         for key, d in reversed(day_rows):
             data.append([
                 datetime.fromisoformat(key).strftime("%a %-d %b"),
-                f"{d['feeds']} · {d['feed_ml']} ml" if d["feeds"] else "–",
+                f"{d['feeds']} · {vol(d['feed_ml'])}" if d["feeds"] else "–",
                 f"{d['breast']} · {_fmt_minutes(d['breast_s'] / 60)}" if d["breast"] else "–",
-                f"{d['pumped']} ml" if d["pumped"] else "–",
+                vol(d["pumped"]) if d["pumped"] else "–",
                 f"{d['naps']} · {_fmt_minutes(d['nap_min'])}" if d["naps"] else "–",
                 str(d["wees"]) if d["wees"] else "–",
                 str(d["poos"]) if d["poos"] else "–",
@@ -1643,9 +1689,9 @@ def build_report_pdf(days):
         for m in measurements:
             data.append([
                 datetime.fromisoformat(m["date"]).strftime("%-d %b %Y"),
-                f"{m['weight_grams'] / 1000:.2f} kg" if m["weight_grams"] else "–",
-                f"{m['length_cm']:.1f} cm" if m["length_cm"] else "–",
-                f"{m['head_cm']:.1f} cm" if m["head_cm"] else "–",
+                weight_text(m["weight_grams"], imperial) if m["weight_grams"] else "–",
+                length_text(m["length_cm"], imperial) if m["length_cm"] else "–",
+                length_text(m["head_cm"], imperial) if m["head_cm"] else "–",
             ])
         table = Table(data, hAlign="LEFT", colWidths=[34 * mm, 30 * mm, 30 * mm, 30 * mm])
         table.setStyle(TableStyle([
@@ -1941,6 +1987,10 @@ def save_settings():
     quick_feed_ml = to_int(payload.get("quickFeedMl"), "quickFeedMl", MAX_MILK_ML, allow_none=True) if has_quick_feed else None
     if has_quick_feed and quick_feed_ml is not None and quick_feed_ml < 1:
         raise ValidationError("Invalid quickFeedMl")
+    has_units = "units" in payload
+    units = payload.get("units") if has_units else None
+    if has_units and units not in UNITS_VALUES:
+        raise ValidationError("Invalid units")
     has_hidden = "hiddenQuickButtons" in payload
     hidden_buttons = payload.get("hiddenQuickButtons") if has_hidden else None
     if has_hidden:
@@ -1961,7 +2011,7 @@ def save_settings():
         existing = conn.execute(
             """
             SELECT baby_weight_grams, baby_weight_updated_at, quick_feed_ml, hidden_quick_buttons, quick_button_order,
-                   baby_name
+                   baby_name, units
             FROM settings
             WHERE id = 1
             """
@@ -1976,12 +2026,14 @@ def save_settings():
         order_json = json.dumps(quick_order) if has_order else (existing["quick_button_order"] if existing else None)
         if not has_name:
             baby_name = existing["baby_name"] if existing else None
+        if not has_units:
+            units = existing["units"] if existing else None
 
         conn.execute(
             """
             INSERT INTO settings (id, feeding_times, baby_weight_grams, baby_dob, baby_weight_updated_at, baby_sex, quick_feed_ml,
-                                  hidden_quick_buttons, quick_button_order, baby_name)
-            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                  hidden_quick_buttons, quick_button_order, baby_name, units)
+            VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
               feeding_times = excluded.feeding_times,
               baby_weight_grams = excluded.baby_weight_grams,
@@ -1991,7 +2043,8 @@ def save_settings():
               quick_feed_ml = excluded.quick_feed_ml,
               hidden_quick_buttons = excluded.hidden_quick_buttons,
               quick_button_order = excluded.quick_button_order,
-              baby_name = excluded.baby_name
+              baby_name = excluded.baby_name,
+              units = excluded.units
             """,
             (
                 json.dumps(feeding_times),
@@ -2003,6 +2056,7 @@ def save_settings():
                 hidden_json,
                 order_json,
                 baby_name,
+                units,
             ),
         )
 
